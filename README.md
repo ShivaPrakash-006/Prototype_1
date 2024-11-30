@@ -1,0 +1,1 @@
+This is just a random school project i decided to make as i wanted to learn more C. I am trying to recreate the Asteroids arcade game in my own style using C libs and the SDL libs to develop the game.
