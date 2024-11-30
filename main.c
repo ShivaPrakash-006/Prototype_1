@@ -3,6 +3,12 @@
 #include <string.h>
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
+#include <SDL3_ttf/SDL_ttf.h>
+#include <SDL3_ttf/SDL_textengine.h>
+#include <SDL3_mixer/SDL_mixer.h>
+#include <SDL3_net/SDL_net.h>
+#include <SDL3_rtf/SDL_rtf.h>
+
 
 #define PI 3.14159265359
 #define WIDTH 1280
@@ -13,6 +19,9 @@
 SDL_Window *gWindow = NULL;
 SDL_Renderer *gRenderer = NULL;
 SDL_FRect gCamRect = {0, 0, WIDTH, HEIGHT};
+
+TTF_Font *sourceCodePro;
+TTF_TextEngine *gTextEngine;
 
 /* Timer Definitions */
 /* Struct */
@@ -116,8 +125,8 @@ typedef struct
 
 void bulletDestroy(Bullet *bullet)
 {
-  bullet->posX = -100;
-  bullet->posY = -100;
+  bullet->posX = -150;
+  bullet->posY = -150;
   bullet->speed = 0;
   bullet->width = 0;
   bullet->height = 0;
@@ -128,188 +137,14 @@ void bulletsInit(Bullet *bullets, uint8_t bulletCount)
 {
   for (uint8_t i = 0; i < bulletCount; i++)
   {
-    (bullets+i)->posX = -100;
-    (bullets+i)->posY = -100;
+    (bullets+i)->posX = -150;
+    (bullets+i)->posY = -150;
     (bullets+i)->speed = 0;
     (bullets+i)->width = 0;
     (bullets+i)->height = 0;
     (bullets+i)->damage = -1;
   }
   
-}
-
-/* Asteroid Definitions */
-/* Struct */
-typedef struct 
-{
-  short width; /* 20 */
-  short height; /* 20 */
-  
-  float posX;
-  float posY;
-
-  _Float16 velX;
-  _Float16 velY;
-
-  _Float16 speed;
-
-  short health;
-
-  SDL_FRect rect;
-} Asteroid;
-
-/* Functions */
-void asteroidInit(Asteroid *asteroids)
-{
-  for (uint8_t i = 0; i < ASTLIMIT; i++)
-  {
-    asteroids[i].health = -1;
-    asteroids[i].width = 0;
-    asteroids[i].height = 0;
-    asteroids[i].posX = -200;
-    asteroids[i].posY = -200;
-    asteroids[i].speed = 0;
-  }
-}
-
-void asteroidSpawn(Asteroid *asteroids, Timer *spawnTimer, Uint8 *astNum)
-{
-  Asteroid asteroid; /* SDL_rand(Number Of Outcomes) + lowerValue -> lowerValue to NumberOfOutcome - 1*/
-  asteroid.health = SDL_rand(3) + 1; /* 1 - 3 */
-
-  asteroid.width = SDL_rand(30) + 20; /* 20 - 49 */
-  asteroid.height = SDL_rand(30) + 20; /* 20 - 49 */
-
-  asteroid.speed = 100;
-
-  switch (SDL_rand(4))
-  {
-  case 0: /* Up */
-    asteroid.posX = SDL_rand(WIDTH);
-    asteroid.posY = 0 - asteroid.height;
-    
-    asteroid.velX = (SDL_rand(20) - 10)/(float) 10; /* -1.0 -> 0.9 */
-    if (asteroid.velX >= 0) asteroid.velX += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
-    asteroid.velY = (SDL_rand(10) + 1)/(float) 10; /* 0.1 -> 1.0 */
-    break;
-  
-  case 1: /* Right */
-    asteroid.posX = WIDTH;
-    asteroid.posY = SDL_rand(HEIGHT);
-
-    asteroid.velX = (SDL_rand(10) - 10)/(float) 10; /* -1.0 -> -0.1 */
-    asteroid.velY = (SDL_rand(20) - 10)/(float) 10; /* -1.0 -> 0.9 */
-    if (asteroid.velY >= 0) asteroid.velY += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
-    break;
-
-  case 2: /* Bottom */
-    asteroid.posX = SDL_rand(WIDTH);
-    asteroid.posY = HEIGHT;
-
-    asteroid.velX = (SDL_rand(20) - 10)/(float) 10; /* -1.0 -> 0.9 */
-    if (asteroid.velX >= 0) asteroid.velX += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
-    asteroid.velY = (SDL_rand(10) - 10)/(float) 10; /* -1.0 -> -0.1 */
-    break;
-  
-  case 3: /* Left */
-    asteroid.posX = 0 - asteroid.width;
-    asteroid.posY = SDL_rand(HEIGHT);
-
-    asteroid.velX = (SDL_rand(20) + 1)/(float) 10; /* 0.1 -> 1.0 */
-    asteroid.velY = (SDL_rand(20) - 10)/(float) 10; /* -1.0 -> 0.9 */
-    if (asteroid.velY >= 0) asteroid.velY += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
-    break;
-
-  default:
-    break;
-  }
-  
-  asteroid.rect.x = asteroid.posX;
-  asteroid.rect.y = asteroid.posY;
-  asteroid.rect.w = asteroid.width;
-  asteroid.rect.h = asteroid.height;
-
-  asteroids[*astNum] = asteroid;
-  (*astNum)++;
-}
-
-void asteroidDestroy(Asteroid *asteroid)
-{
-  asteroid->width = 0;
-  asteroid->height = 0;
-  asteroid->health = -1;
-  asteroid->rect.x = -100;
-  asteroid->rect.y = -100;
-  asteroid->rect.w = 0;
-  asteroid->rect.h = 0;
-}
-
-void asteroidHandler(Asteroid *asteroids, Bullet *bullets, Timer *spawnTimer, Uint8 *astNum, double delta)
-{
-  /* Asteroids - Bullet Collision Detector & Destroyer */
-  for (uint8_t ast = 0; ast < ASTLIMIT; ast++)
-  {
-    for (uint8_t bull = 0; bull < 10; bull++)
-    {
-      if (SDL_HasRectIntersectionFloat(&(asteroids + ast)->rect, &(bullets + bull)->rect))
-      {
-        (asteroids + ast)->health -= (bullets + bull)->damage; /* Reduce Health */
-        if ((asteroids + ast)->health == 0)
-        {
-          asteroidDestroy(asteroids + ast); /* Destroy Objects */
-          bulletDestroy(bullets + bull);
-        }
-      }
-    }
-  }
-
-  /* Asteroid Spawner */
-  if (spawnTimer->ticks > SDL_rand(5000) + 10000 && (*astNum) < 30)
-  {
-    if ((*astNum) > 30)
-    {
-      (*astNum) = 0;
-    }
-
-    asteroidSpawn(asteroids, spawnTimer, astNum);
-    timerStop(spawnTimer);
-    timerStart(spawnTimer);
-  }
-
-  /* Asteroid Movement */
-  for (uint8_t i = 0; i < ASTLIMIT; i++)
-  {
-    asteroids[i].posX += asteroids[i].velX * asteroids[i].speed * delta;
-    asteroids[i].posY += asteroids[i].velY * asteroids[i].speed * delta;
-
-    /* Screen Looping */
-    if (asteroids[i].posX + asteroids[i].width < 0)
-    {
-      asteroids[i].posX = WIDTH; /* Left to Right */
-    }
-
-    else if (asteroids[i].posX > WIDTH)
-    {
-      asteroids[i].posX = 0 - asteroids[i].width; /* Right to Left */
-    }
-
-    if (asteroids[i].posY + asteroids[i].height < 0)
-    {
-      asteroids[i].posY = HEIGHT; /* Top to Bottom */
-    }
-
-    else if (asteroids[i].posY > HEIGHT)
-    {
-      asteroids[i].posY = 0 - asteroids[i].height; /* Bottom to Top */
-    }
-    
-  
-
-    asteroids[i].rect.x = asteroids[i].posX;
-    asteroids[i].rect.y = asteroids[i].posY;
-  }
-
-  timerCalcTicks(spawnTimer);
 }
 
 /* Player Definitions*/
@@ -365,6 +200,7 @@ typedef struct
   Timer bulletTimer;
 
   Uint64 score;
+  TTF_Text *scoreText;
 
 } Player;
 
@@ -822,20 +658,210 @@ void playerMovementHandler(Player *player, double delta)
   
 }
 
-void renderPlayer(Player player)
+void playerTextHandler(Player *player)
 {
-  SDL_FRect destRect;
+  /* Score */
+  char score[11]; /* Number of characters in "Score: 999" */
+  snprintf(score, 11, "Score: %i", player->score); /* To join string with int */
+  player->scoreText = TTF_CreateText(gTextEngine, sourceCodePro, score, 0);
+}
+
+void playerRender(Player player)
+{
+  /* Player Render */
+  SDL_FRect destRect; /* Creating destination rect to render player*/
   destRect.x = player.rect.x;
   destRect.y = player.rect.y;
   destRect.w = 50;
   destRect.h = 50;
   SDL_RenderTextureRotated(gRenderer, player.icon, NULL, &destRect, player.rot, NULL, SDL_FLIP_NONE);
+
+  /* Render Stats */
+  /* Score */
+  TTF_DrawRendererText(player.scoreText, WIDTH - 10, 10);
+  
 }
 
 void playerDestroy(Player *player)
 {
   
 }
+
+/* Asteroid Definitions */
+/* Struct */
+typedef struct 
+{
+  short width; /* 20 */
+  short height; /* 20 */
+  
+  float posX;
+  float posY;
+
+  _Float16 velX;
+  _Float16 velY;
+
+  _Float16 speed;
+
+  short health;
+
+  SDL_FRect rect;
+} Asteroid;
+
+/* Functions */
+void asteroidInit(Asteroid *asteroids)
+{
+  for (uint8_t i = 0; i < ASTLIMIT; i++)
+  {
+    asteroids[i].health = -1;
+    asteroids[i].width = 0;
+    asteroids[i].height = 0;
+    asteroids[i].posX = -100;
+    asteroids[i].posY = -100;
+    asteroids[i].speed = 0;
+  }
+}
+
+void asteroidSpawn(Asteroid *asteroids, Timer *spawnTimer, Uint8 *astNum)
+{
+  Asteroid asteroid; /* SDL_rand(Number Of Outcomes) + lowerValue -> lowerValue to NumberOfOutcome - 1*/
+  asteroid.health = SDL_rand(3) + 1; /* 1 - 3 */
+
+  asteroid.width = SDL_rand(30) + 20; /* 20 - 49 */
+  asteroid.height = SDL_rand(30) + 20; /* 20 - 49 */
+
+  asteroid.speed = 100;
+
+  switch (SDL_rand(4))
+  {
+  case 0: /* Up */
+    asteroid.posX = SDL_rand(WIDTH);
+    asteroid.posY = 0 - asteroid.height;
+    
+    asteroid.velX = (SDL_rand(20) - 10)/(float) 10; /* -1.0 -> 0.9 */
+    if (asteroid.velX >= 0) asteroid.velX += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
+    asteroid.velY = (SDL_rand(10) + 1)/(float) 10; /* 0.1 -> 1.0 */
+    break;
+  
+  case 1: /* Right */
+    asteroid.posX = WIDTH;
+    asteroid.posY = SDL_rand(HEIGHT);
+
+    asteroid.velX = (SDL_rand(10) - 10)/(float) 10; /* -1.0 -> -0.1 */
+    asteroid.velY = (SDL_rand(20) - 10)/(float) 10; /* -1.0 -> 0.9 */
+    if (asteroid.velY >= 0) asteroid.velY += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
+    break;
+
+  case 2: /* Bottom */
+    asteroid.posX = SDL_rand(WIDTH);
+    asteroid.posY = HEIGHT;
+
+    asteroid.velX = (SDL_rand(20) - 10)/(float) 10; /* -1.0 -> 0.9 */
+    if (asteroid.velX >= 0) asteroid.velX += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
+    asteroid.velY = (SDL_rand(10) - 10)/(float) 10; /* -1.0 -> -0.1 */
+    break;
+  
+  case 3: /* Left */
+    asteroid.posX = 0 - asteroid.width;
+    asteroid.posY = SDL_rand(HEIGHT);
+
+    asteroid.velX = (SDL_rand(20) + 1)/(float) 10; /* 0.1 -> 1.0 */
+    asteroid.velY = (SDL_rand(20) - 10)/(float) 10; /* -1.0 -> 0.9 */
+    if (asteroid.velY >= 0) asteroid.velY += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
+    break;
+
+  default:
+    break;
+  }
+  
+  asteroid.rect.x = asteroid.posX;
+  asteroid.rect.y = asteroid.posY;
+  asteroid.rect.w = asteroid.width;
+  asteroid.rect.h = asteroid.height;
+
+  asteroids[*astNum] = asteroid;
+  (*astNum)++;
+}
+
+void asteroidDestroy(Asteroid *asteroid)
+{
+  asteroid->width = 0;
+  asteroid->height = 0;
+  asteroid->health = -1;
+  asteroid->rect.x = -100;
+  asteroid->rect.y = -100;
+  asteroid->rect.w = 0;
+  asteroid->rect.h = 0;
+}
+
+void asteroidHandler(Asteroid *asteroids, Bullet *bullets, Player *player, Timer *spawnTimer, Uint8 *astNum, double delta)
+{
+  /* Asteroids - Bullet Collision Detector & Destroyer */
+  for (uint8_t ast = 0; ast < ASTLIMIT; ast++)
+  {
+    for (uint8_t bull = 0; bull < 10; bull++)
+    {
+      if (SDL_HasRectIntersectionFloat(&(asteroids + ast)->rect, &(bullets + bull)->rect) && (asteroids + ast)->health > -1)
+      {
+        (asteroids + ast)->health -= (bullets + bull)->damage; /* Reduce Health */
+        if ((asteroids + ast)->health == 0)
+        {
+          asteroidDestroy(asteroids + ast); /* Destroy Objects */
+          bulletDestroy(bullets + bull);
+          player->score++;
+        }
+      }
+    }
+  }
+
+  /* Asteroid Spawner */
+  if (spawnTimer->ticks > SDL_rand(5000) + 10000 && (*astNum) < 30)
+  {
+    if ((*astNum) > 30)
+    {
+      (*astNum) = 0;
+    }
+
+    asteroidSpawn(asteroids, spawnTimer, astNum);
+    timerStop(spawnTimer);
+    timerStart(spawnTimer);
+  }
+
+  /* Asteroid Movement */
+  for (uint8_t i = 0; i < ASTLIMIT; i++)
+  {
+    asteroids[i].posX += asteroids[i].velX * asteroids[i].speed * delta;
+    asteroids[i].posY += asteroids[i].velY * asteroids[i].speed * delta;
+
+    /* Screen Looping */
+    if (asteroids[i].posX + asteroids[i].width < 0)
+    {
+      asteroids[i].posX = WIDTH; /* Left to Right */
+    }
+
+    else if (asteroids[i].posX > WIDTH)
+    {
+      asteroids[i].posX = 0 - asteroids[i].width; /* Right to Left */
+    }
+
+    if (asteroids[i].posY + asteroids[i].height < 0)
+    {
+      asteroids[i].posY = HEIGHT; /* Top to Bottom */
+    }
+
+    else if (asteroids[i].posY > HEIGHT)
+    {
+      asteroids[i].posY = 0 - asteroids[i].height; /* Bottom to Top */
+    }
+    
+  
+
+    asteroids[i].rect.x = asteroids[i].posX;
+    asteroids[i].rect.y = asteroids[i].posY;
+  }
+
+  timerCalcTicks(spawnTimer);
+}
+
 
 bool init()
 {
@@ -852,28 +878,45 @@ bool init()
   {
     if (IMG_Init(IMG_INIT_PNG - IMG_INIT_JPG) == 0)
     {
-      printf("SDL_Image could not be initialized! SDL_Image Error %s\n", IMG_GetError());
+      printf("SDL_Image could not be initialized! SDL_Image Error %s\n", SDL_GetError());
       success = false;
     }
     else
     {
-      gWindow = SDL_CreateWindow("Astroids-P1", WIDTH, HEIGHT, SDL_WINDOW_FULLSCREEN);
-      if (gWindow == NULL)
+      if (TTF_Init() < 0)
       {
-        printf("Window could not be created! SDL Error: %s\n", SDL_GetError());
+        printf("SDL_ttf could not be initialized! SDL_ttf Error: %s\n", SDL_GetError());
         success = false;
       }
       else
-      {
-        gRenderer = SDL_CreateRenderer(gWindow, NULL);
-        if (gRenderer == NULL)
+      {  
+        gWindow = SDL_CreateWindow("Astroids-P1", WIDTH, HEIGHT, SDL_WINDOW_FULLSCREEN);
+        if (gWindow == NULL)
         {
-          printf("Renderer could not be created! SDL Error: %s\n", SDL_GetError());
+          printf("Window could not be created! SDL Error: %s\n", SDL_GetError());
           success = false;
         }
         else
         {
-          SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
+          gRenderer = SDL_CreateRenderer(gWindow, NULL);
+          if (gRenderer == NULL)
+          {
+            printf("Renderer could not be created! SDL Error: %s\n", SDL_GetError());
+            success = false;
+          }
+          else
+          {
+            SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
+            gTextEngine = TTF_CreateRendererTextEngine(gRenderer);
+            if (gTextEngine == NULL)
+            {
+              printf("TextEngine could not be created! SDL_ttf Error: %s\n", SDL_GetError());
+            }
+            else
+            {
+              
+            }
+          }
         }
       }
     }
@@ -886,10 +929,16 @@ bool load(Player *player) /* Get Game Objects and load their respective assets *
 {
   bool success = true;
 
-  player->icon = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Crystal.png"));
+  player->icon = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Crystal.png"));
   if (player->icon == NULL)
   {
-    printf("'Crystal.png' could not be loaded! SDL_image Error: %s\n", IMG_GetError());
+    printf("'Crystal.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+  }
+
+  sourceCodePro = TTF_OpenFont("Assets/SourceCodePro-ExtraLight.ttf", HEIGHT/50);
+  if (sourceCodePro == NULL)
+  {
+    printf("'SourceCodePro-ExtraLight.ttf' could not be loaded! SDL_ttf Error: %s\n", SDL_GetError());
   }
 
   return success;
@@ -919,8 +968,8 @@ void draw(Player player, Asteroid asteroids[])
     }
   }
 
-
-  renderPlayer(player);
+  playerTextHandler(&player);
+  playerRender(player);
 
   SDL_RenderPresent(gRenderer);
 }
@@ -1032,7 +1081,7 @@ int main(int argc, char *args[])
 
     playerMovementHandler(&player, dTimer.deltaInSecs);
     playerBulletHander(&player, dTimer.deltaInSecs);
-    asteroidHandler(asteroids, player.bullets, &astSpawnTimer, &astNum, dTimer.deltaInSecs);
+    asteroidHandler(asteroids, player.bullets, &player, &astSpawnTimer, &astNum, dTimer.deltaInSecs);
 
     draw(player, asteroids); /* Draw, Blit and Render */
   }
