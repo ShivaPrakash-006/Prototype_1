@@ -13,7 +13,6 @@
 #define PI 3.14159265359
 #define WIDTH 1280
 #define HEIGHT 720
-#define NULLPTR &NULL
 #define ASTLIMIT 100
 
 SDL_Window *gWindow = NULL;
@@ -186,6 +185,14 @@ typedef struct
   float maxVelX; /* sin of rot */
   float maxVelY; /* cos of rot */
 
+  float maxAfterBurnerFuel; /* 100 */
+  float afterBurnerRefuelRate; /* 5 */
+  float afterBurnerDepletionRate; /* 10 */
+  float afterBurnerFuel;
+  _Bool afterBurnerOverheat;
+  Timer overHeatTimer;
+  int afterBurnerCooldown; /* 5 Seconds */
+
   SDL_FRect rect;
 
   SDL_Texture *icon;
@@ -305,7 +312,10 @@ void playerEventHandler(SDL_Event e, Player *player)
       break;
 
     case SDLK_LSHIFT:
+      if (player->afterBurnerFuel > 0 && !player->afterBurnerOverheat)
+      {
       player->afterburning = true;
+      }
       break;
 
     case SDLK_SPACE:
@@ -654,8 +664,25 @@ void playerMovementHandler(Player *player, double delta)
   player->rect.x = player->posX;
   player->rect.y = player->posY;
 
-  /*Test*/
+  /* Afterburner */
+  if (!player->afterburning && player->afterBurnerFuel < player->maxAfterBurnerFuel)
+  {
+    player->afterBurnerFuel += player->afterBurnerRefuelRate;
+  }
+  else if (player->afterburning && player->afterBurnerFuel > 0)
+  {
+    player->afterBurnerFuel -= player->afterBurnerDepletionRate;
+  }
+  else if (player->afterBurnerFuel <= 0)
+  {
+    player->afterBurnerOverheat = true;
+    player->afterburning = false;
+  }
   
+  if (player->afterBurnerOverheat && player->afterBurnerFuel >= player->maxAfterBurnerFuel)
+  {
+    player->afterBurnerOverheat = false;
+  }
 }
 
 void playerTextHandler(Player *player)
@@ -678,7 +705,7 @@ void playerRender(Player player)
 
   /* Render Stats */
   /* Score */
-  TTF_DrawRendererText(player.scoreText, WIDTH - 10, 10);
+  TTF_DrawRendererText(player.scoreText, WIDTH - strlen(player.scoreText->text) * 10, 10);
   
 }
 
@@ -726,10 +753,10 @@ void asteroidSpawn(Asteroid *asteroids, Timer *spawnTimer, Uint8 *astNum)
   Asteroid asteroid; /* SDL_rand(Number Of Outcomes) + lowerValue -> lowerValue to NumberOfOutcome - 1*/
   asteroid.health = SDL_rand(3) + 1; /* 1 - 3 */
 
-  asteroid.width = SDL_rand(30) + 20; /* 20 - 49 */
-  asteroid.height = SDL_rand(30) + 20; /* 20 - 49 */
+  asteroid.width = SDL_rand(30) + 40; /* 40 - 69 */
+  asteroid.height = SDL_rand(30) + 40; /* 40 - 69 */
 
-  asteroid.speed = 100;
+  asteroid.speed = SDL_rand(100) + 100;
 
   switch (SDL_rand(4))
   {
@@ -814,15 +841,15 @@ void asteroidHandler(Asteroid *asteroids, Bullet *bullets, Player *player, Timer
   }
 
   /* Asteroid Spawner */
-  if (spawnTimer->ticks > SDL_rand(5000) + 10000 && (*astNum) < 30)
+  if (spawnTimer->ticks > SDL_rand(3000) + 2000 && (*astNum) < ASTLIMIT)
   {
-    if ((*astNum) > 30)
+    if ((*astNum) > ASTLIMIT)
     {
       (*astNum) = 0;
     }
 
-    asteroidSpawn(asteroids, spawnTimer, astNum);
-    timerStop(spawnTimer);
+    asteroidSpawn(asteroids, spawnTimer, astNum); 
+    timerStop(spawnTimer); /* Stop and Start to Reset Timer */
     timerStart(spawnTimer);
   }
 
@@ -890,7 +917,7 @@ bool init()
       }
       else
       {  
-        gWindow = SDL_CreateWindow("Astroids-P1", WIDTH, HEIGHT, SDL_WINDOW_FULLSCREEN);
+        gWindow = SDL_CreateWindow("Astroids-P1", WIDTH, HEIGHT, SDL_WINDOW_BORDERLESS);
         if (gWindow == NULL)
         {
           printf("Window could not be created! SDL Error: %s\n", SDL_GetError());
@@ -1005,7 +1032,7 @@ int main(int argc, char *args[])
 
   player.maxMoveSpeed = 17.5;
   player.minMoveSpeed = 0.1;
-  player.maxRotSpeed = 0.15;
+  player.maxRotSpeed = 0.1;
   player.minRotSpeed = 0.01;
 
   player.currentMoveSpeed = 0;
@@ -1035,6 +1062,13 @@ int main(int argc, char *args[])
   player.rect.h = player.height;
   player.rect.x = player.posX;
   player.rect.y = player.posY;
+
+  player.maxAfterBurnerFuel = 1000;
+  player.afterBurnerRefuelRate = 0.1;
+  player.afterBurnerDepletionRate = 0.5;
+  player.afterBurnerFuel = player.maxAfterBurnerFuel;
+  player.afterBurnerOverheat = false;
+  player.afterBurnerCooldown = 5000; /* 5 Secs */
 
   /* Player Bullets */
   player.magSize = 11;
