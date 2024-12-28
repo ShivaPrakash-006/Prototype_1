@@ -9,16 +9,28 @@
 #include <SDL3_net/SDL_net.h>
 #include <SDL3_rtf/SDL_rtf.h>
 
+#define PRINTERROR printf("%s", SDL_GetError());
+
 #define PI 3.14159265359
 #define WIDTH 1280
 #define HEIGHT 720
 #define ASTLIMIT 100
 
+enum state {
+  MENU = 0,
+  GAME = 1,
+  PAUSED = 2,
+  LOSE = 3,
+  SCORES = 4
+};
+
+enum state gameState = MENU;
+
 SDL_Window *gWindow = NULL;
 SDL_Renderer *gRenderer = NULL;
 SDL_FRect gCamRect = {0, 0, WIDTH, HEIGHT};
 
-TTF_Font *sourceCodePro;
+TTF_Font *jetBrainsMono;
 TTF_TextEngine *gTextEngine;
 
 /* Timer Definitions */
@@ -772,7 +784,7 @@ void playerTextHandler(Player *player)
   /* Score */
   char score[11]; /* Number of characters in "Score: 999" */
   snprintf(score, 11, "Score: %i", player->score); /* To join string with int */
-  player->scoreText = TTF_CreateText(gTextEngine, sourceCodePro, score, 0);
+  player->scoreText = TTF_CreateText(gTextEngine, jetBrainsMono, score, 0);
 }
 
 void playerRender(Player player)
@@ -981,6 +993,50 @@ void asteroidHandler(Asteroid *asteroids, Bullet *bullets, Player *player, Timer
 }
 
 
+/* Buttons */
+/* Structure */
+typedef struct 
+{
+  float width;
+  float height;
+  float posX;
+  float posY; 
+
+  bool hovered;
+  bool clicked;
+
+  SDL_FRect rect;
+
+} Button;
+
+/* Functions */
+bool buttonStateUpdater(Button *button)
+{
+  float mouseX;
+  float mouseY;
+  SDL_MouseButtonFlags mouseState = SDL_GetMouseState(&mouseX, &mouseY); //Getting The State of the mouse
+
+  if (mouseX > button->posX && mouseX < button->posX + button->width && //Checking X Collision
+      mouseY > button->posY && mouseY < button->posY + button->height ) //Checking Y Collision
+  {
+    button->hovered = true;
+    if (mouseState == SDL_BUTTON_LMASK)
+    {
+      button->clicked = true;
+    }
+    else
+    {
+      button->clicked = false;
+    }
+    
+  }
+  else
+  {
+    button->hovered = false;
+    button->clicked = false;
+  }
+}
+
 void gameOver(Player *player)
 {
   
@@ -1037,6 +1093,15 @@ bool init()
             }
             else
             {
+              jetBrainsMono = TTF_OpenFont("Assets/JetBrainsMono-Medium.ttf", HEIGHT/50);
+              if (jetBrainsMono == NULL)
+              {
+                printf("'JetBrainsMono-Medium.ttf' could not be loaded! SDL_ttf Error: %s\n", SDL_GetError());
+              }
+              else
+              {
+                /* code */
+              }
               
             }
           }
@@ -1058,41 +1123,65 @@ bool load(Player *player) /* Get Game Objects and load their respective assets *
     printf("'Crystal.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
   }
 
-  sourceCodePro = TTF_OpenFont("Assets/SourceCodePro-ExtraLight.ttf", HEIGHT/50);
-  if (sourceCodePro == NULL)
-  {
-    printf("'SourceCodePro-ExtraLight.ttf' could not be loaded! SDL_ttf Error: %s\n", SDL_GetError());
-  }
-
   return success;
 }
 
-void draw(Player player, Asteroid asteroids[])
+void draw(Player *player, Asteroid asteroids[], Button buttons[])
 {
-  SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
-  SDL_RenderClear(gRenderer);
+  if (gameState == MENU)
+  {
+    char buttonsText[2][10] = {"Play","Scores"};
+    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
+    SDL_RenderClear(gRenderer);
 
-  SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-  //SDL_RenderFillRect(gRenderer, &player.rect);
+    for (uint8_t i = 0; i < 2; i++) //Number of Buttons
+    {
+      TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
+      
+      if (buttons[i].hovered)
+      {
+        SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
+        TTF_SetTextColor(buttonText, 255, 255, 255, 255);
+      }
+      else
+      {
+        SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
+        TTF_SetTextColor(buttonText, 0, 0, 0, 255);
+      }
+      
+      SDL_RenderFillRect(gRenderer, &buttons[i].rect);
+      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width/2 - strlen(buttonText->text) * 5,
+                                       buttons[i].posY + buttons[i].height/2 - HEIGHT/75);
+    }
+  }
   
-  for (uint8_t i = 0; i < player.magSize - 1; i++)
+  else if (gameState == GAME)
   {
-    if (!SDL_HasRectIntersectionFloat(&player.rect, &player.bullets[i].rect) && player.bullets[i].damage != -1)
-    {
-      SDL_RenderRect(gRenderer, &player.bullets[i].rect); /* Render Bullets only when they're a bit away from you*/
-    }
-  }
+    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
+    SDL_RenderClear(gRenderer);
 
-  for (uint8_t i = 0; i < ASTLIMIT; i++) /* Render Asteroids */
-  {
-    if (asteroids[i].health != -1)
+    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+    //SDL_RenderFillRect(gRenderer, &player.rect);
+    
+    for (uint8_t i = 0; i < player->magSize - 1; i++)
     {
-    SDL_RenderFillRect(gRenderer, &asteroids[i].rect);
+      if (!SDL_HasRectIntersectionFloat(&player->rect, &player->bullets[i].rect) && player->bullets[i].damage != -1)
+      {
+        SDL_RenderRect(gRenderer, &player->bullets[i].rect); /* Render Bullets only when they're a bit away from you*/
+      }
     }
-  }
 
-  playerTextHandler(&player);
-  playerRender(player);
+    for (uint8_t i = 0; i < ASTLIMIT; i++) /* Render Asteroids */
+    {
+      if (asteroids[i].health != -1)
+      {
+        SDL_RenderFillRect(gRenderer, &asteroids[i].rect);
+      }
+    }
+
+    playerTextHandler(player);
+    playerRender(*player);
+  }
 
   SDL_RenderPresent(gRenderer);
 }
@@ -1108,50 +1197,133 @@ int main(int argc, char *args[])
 {
   init(); /* Initialize */
 
-  /* Initializing Game Objects */
-  /* Delta Timer */
-  DeltaTimer dTimer;
-
-  dTimer.frameStart = SDL_GetPerformanceCounter();
-  dTimer.frameEnd = 0;
-  dTimer.delta = 0;
-
-  /* Player */
-  Player player;
-  playerInit(&player);
-  
-  /* Asteroids */
-  Asteroid asteroids[ASTLIMIT + 1];
-
-  Uint8 astNum = 0;
-  asteroidInit(asteroids);
-
-  Timer astSpawnTimer;
-  timerStart(&astSpawnTimer);
-
-  load(&player);
-
-  SDL_Event e;
-  bool exited = false;
-
-  while (!exited)
+  bool run = true;
+  while (run)
   {
-    while (SDL_PollEvent(&e) != 0)
+    if (gameState == MENU)
     {
-      if (e.type == SDL_EVENT_QUIT)
+      /* Buttons */
+      Button buttons[2];
+
+      Button playButton;
+      playButton.clicked = 0;
+      playButton.hovered = 0;
+      playButton.width = 200;
+      playButton.height = 50;
+      playButton.posX = (WIDTH - playButton.width)/2;
+      playButton.posY = 1*HEIGHT/3 - playButton.height/2;
+      playButton.rect.w = playButton.width;
+      playButton.rect.h = playButton.height;
+      playButton.rect.x = playButton.posX;
+      playButton.rect.y = playButton.posY;
+
+      Button scoreButton;
+      scoreButton.clicked = 0;
+      scoreButton.hovered = 0;
+      scoreButton.width = 200;
+      scoreButton.height = 50;
+      scoreButton.posX = (WIDTH - scoreButton.width)/2;
+      scoreButton.posY = 2*HEIGHT/3 - scoreButton.height/2;
+      scoreButton.rect.w = scoreButton.width;
+      scoreButton.rect.h = scoreButton.height;
+      scoreButton.rect.x = scoreButton.posX;
+      scoreButton.rect.y = scoreButton.posY;
+
+      buttons[0] = playButton;
+      buttons[1] = scoreButton;
+
+      SDL_Event e;
+      bool exited = false;
+
+      while (!exited)
       {
-        exited = true;
+        while (SDL_PollEvent(&e) != 0)
+        {
+          if (e.type == SDL_EVENT_QUIT)
+          {
+            exited = true;
+            run = false;
+          }
+        }
+
+        for (uint8_t i = 0; i < 2; i++)
+        {
+          buttonStateUpdater(&buttons[i]);
+        }
+
+        if (buttons[0].clicked == true)
+        {
+          gameState = GAME;
+          break;
+        }
+        
+        draw(NULL, NULL, buttons);
       }
-
-      playerEventHandler(e, &player);
     }
-    deltaCalc(&dTimer);
+  
 
-    playerMovementHandler(&player, dTimer.deltaInSecs);
-    playerBulletHander(&player, dTimer.deltaInSecs);
-    asteroidHandler(asteroids, player.bullets, &player, &astSpawnTimer, &astNum, dTimer.deltaInSecs);
+    else if (gameState == GAME)
+    {
+      /* Initializing Game Objects */
+      /* Delta Timer */
+      DeltaTimer dTimer;
 
-    draw(player, asteroids); /* Draw, Blit and Render */
+      dTimer.frameStart = SDL_GetPerformanceCounter();
+      dTimer.frameEnd = 0;
+      dTimer.delta = 0;
+
+      /* Player */
+      Player player;
+      playerInit(&player);
+      
+      /* Asteroids */
+      Asteroid asteroids[ASTLIMIT + 1];
+
+
+      Uint8 astNum = 0;
+      asteroidInit(asteroids);
+
+      Timer astSpawnTimer;
+      timerStart(&astSpawnTimer);
+
+      load(&player);
+
+      SDL_Event e;
+      bool exited = false;
+
+      while (!exited)
+      {
+        while (SDL_PollEvent(&e) != 0)
+        {
+          if (e.type == SDL_EVENT_QUIT)
+          {
+            exited = true;
+            run = false;
+          }
+
+          playerEventHandler(e, &player);
+        }
+        deltaCalc(&dTimer);
+
+        playerMovementHandler(&player, dTimer.deltaInSecs);
+        playerBulletHander(&player, dTimer.deltaInSecs);
+        asteroidHandler(asteroids, player.bullets, &player, &astSpawnTimer, &astNum, dTimer.deltaInSecs);
+
+        draw(&player, asteroids, NULL); /* Draw, Blit and Render */
+      }
+    }
+  
+
+    if (gameState == PAUSED)
+    {
+
+    }
+
+    if (gameState == LOSE)
+    {
+
+    }
+
   }
 
   quit(); // Quit
