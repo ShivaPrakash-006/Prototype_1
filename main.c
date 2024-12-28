@@ -9,7 +9,6 @@
 #include <SDL3_net/SDL_net.h>
 #include <SDL3_rtf/SDL_rtf.h>
 
-
 #define PI 3.14159265359
 #define WIDTH 1280
 #define HEIGHT 720
@@ -58,10 +57,12 @@ void timerStop(Timer *timer)
 void timerPause(Timer *timer)
 {
   if (timer->started && !timer->paused)
+  {
     timer->paused = true;
 
     timer->pausedTicks = SDL_GetTicks() - timer->startTicks;
     timer->startTicks = 0;
+  }
 }
 
 void timerCalcTicks(Timer *timer)
@@ -92,7 +93,7 @@ typedef struct
 } DeltaTimer;
 
 /* Functions */
-double deltaCalc(DeltaTimer *dTimer)
+void deltaCalc(DeltaTimer *dTimer)
 {
   dTimer->frameEnd = dTimer->frameStart;
   dTimer->frameStart = SDL_GetPerformanceCounter();
@@ -193,6 +194,8 @@ typedef struct
   Timer overHeatTimer;
   int afterBurnerCooldown; /* 5 Seconds */
 
+  float leapDistance; /* 100 */
+
   SDL_FRect rect;
 
   SDL_Texture *icon;
@@ -212,6 +215,75 @@ typedef struct
 } Player;
 
 /* Functions */
+void playerInit(Player *player)
+{
+  player->width = 50;
+  player->height = 50;
+
+  player->posX = 10;
+  player->posY = 10;
+  player->rot = 90;
+
+  player->maxMoveSpeed = 17.5;
+  player->minMoveSpeed = 0.1;
+  player->maxRotSpeed = 0.1;
+  player->minRotSpeed = 0.01;
+
+  player->currentMoveSpeed = 0;
+  player->currentRotSpeed = 0;
+  player->rotVel = 0;
+  player->moving = false;
+  player->braking = false;
+  player->afterburning = false;
+
+  player->moveSpeedMulti = 0.009;
+  player->moveSpeedDecay = 0.9995;
+
+  player->moveVelMulti = 0.009;
+  player->moveVelDecay = 0.9995;
+
+  player->rotVelMulti = 0.005;
+  player->rotVelDecay = 0.999;
+
+  player->velX = 0;
+  player->velY = 0;
+
+  player->minVel = 0.1;
+  player->maxVelX = 0;
+  player->maxVelY = 0;
+
+  player->rect.w = player->width;
+  player->rect.h = player->height;
+  player->rect.x = player->posX;
+  player->rect.y = player->posY;
+
+  player->maxAfterBurnerFuel = 1000;
+  player->afterBurnerRefuelRate = 0.1;
+  player->afterBurnerDepletionRate = 0.5;
+  player->afterBurnerFuel = player->maxAfterBurnerFuel;
+  player->afterBurnerOverheat = false;
+  player->afterBurnerCooldown = 5000; /* 5 Secs */
+
+  player->leapDistance = 100;
+
+  /* Player Bullets */
+  player->magSize = 11;
+  player->bulletNum = 0;
+
+  player->bulletTimer.startTicks = 0;
+  player->bulletTimer.pausedTicks = 0;
+  player->bulletTimer.started = 0;
+  player->bulletTimer.paused = 0;
+  player->bulletTimer.ticks = 0;
+
+  player->reloadTime = 5000;
+  player->reloading = false;
+
+  player->icon = NULL;
+
+  bulletsInit(player->bullets, player->magSize - 1);
+}
+
 void playerLogs(Player player)
 {
   printf("posX: %f\n", player.posX);
@@ -254,7 +326,7 @@ void playerShoot(Player *player)
 
 void playerBulletHander(Player *player, double delta)
 {
-  if (player->bulletNum > player->magSize - 2 && !player->reloading)
+  if (player->bulletNum > player->magSize - 2 && !player->reloading) 
   {
     player->reloading = true;
     timerStart(&player->bulletTimer);
@@ -307,21 +379,31 @@ void playerEventHandler(SDL_Event e, Player *player)
       player->rotVel += 1;
       break;
 
-    case SDLK_L:
+    case SDLK_F1:
       playerLogs(*player);
       break;
 
-    case SDLK_LSHIFT:
+    case SDLK_J:
       if (player->afterBurnerFuel > 0 && !player->afterBurnerOverheat)
       {
-      player->afterburning = true;
+        player->afterburning = true;
       }
       break;
 
-    case SDLK_SPACE:
+    case SDLK_K:
       if (!player->reloading)
       {
         playerShoot(player);
+      }
+      break;
+    
+    case SDLK_L:
+      if (!player->afterBurnerOverheat && player->afterBurnerFuel >= player->maxAfterBurnerFuel)
+      {
+        player->posX += player->maxVelX * player->leapDistance;
+        player->posY += player->maxVelY * player->leapDistance;
+        player->afterBurnerOverheat = true;
+        player->afterBurnerFuel = 0;
       }
       break;
 
@@ -349,7 +431,7 @@ void playerEventHandler(SDL_Event e, Player *player)
       player->rotVel += 1;
       break;
 
-    case SDLK_LSHIFT:
+    case SDLK_J:
       player->afterburning = false;
 
     default:
@@ -711,7 +793,16 @@ void playerRender(Player player)
 
 void playerDestroy(Player *player)
 {
-  
+  player->posX = -300;
+  player->posY = -300;
+
+  player->width = 0;
+  player->height = 0;
+
+  player->minMoveSpeed = 0;
+  player->maxMoveSpeed = 0;
+
+  player->moving = false;
 }
 
 /* Asteroid Definitions */
@@ -890,6 +981,11 @@ void asteroidHandler(Asteroid *asteroids, Bullet *bullets, Player *player, Timer
 }
 
 
+void gameOver(Player *player)
+{
+  
+}
+
 bool init()
 {
   bool success = true;
@@ -1022,70 +1118,8 @@ int main(int argc, char *args[])
 
   /* Player */
   Player player;
-
-  player.width = 50;
-  player.height = 50;
-
-  player.posX = 10;
-  player.posY = 10;
-  player.rot = 90;
-
-  player.maxMoveSpeed = 17.5;
-  player.minMoveSpeed = 0.1;
-  player.maxRotSpeed = 0.1;
-  player.minRotSpeed = 0.01;
-
-  player.currentMoveSpeed = 0;
-  player.currentRotSpeed = 0;
-  player.rotVel = 0;
-  player.moving = false;
-  player.braking = false;
-  player.afterburning = false;
-
-  player.moveSpeedMulti = 0.009;
-  player.moveSpeedDecay = 0.9995;
-
-  player.moveVelMulti = 0.009;
-  player.moveVelDecay = 0.9995;
-
-  player.rotVelMulti = 0.005;
-  player.rotVelDecay = 0.999;
-
-  player.velX = 0;
-  player.velY = 0;
-
-  player.minVel = 0.1;
-  player.maxVelX = 0;
-  player.maxVelY = 0;
-
-  player.rect.w = player.width;
-  player.rect.h = player.height;
-  player.rect.x = player.posX;
-  player.rect.y = player.posY;
-
-  player.maxAfterBurnerFuel = 1000;
-  player.afterBurnerRefuelRate = 0.1;
-  player.afterBurnerDepletionRate = 0.5;
-  player.afterBurnerFuel = player.maxAfterBurnerFuel;
-  player.afterBurnerOverheat = false;
-  player.afterBurnerCooldown = 5000; /* 5 Secs */
-
-  /* Player Bullets */
-  player.magSize = 11;
-  player.bulletNum = 0;
-
-  player.bulletTimer.startTicks = 0;
-  player.bulletTimer.pausedTicks = 0;
-  player.bulletTimer.started = 0;
-  player.bulletTimer.paused = 0;
-  player.bulletTimer.ticks = 0;
-
-  player.reloadTime = 5000;
-
-  player.icon = NULL;
-
-  bulletsInit(player.bullets, player.magSize - 1);
-
+  playerInit(&player);
+  
   /* Asteroids */
   Asteroid asteroids[ASTLIMIT + 1];
 
