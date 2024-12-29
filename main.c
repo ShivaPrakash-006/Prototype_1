@@ -20,7 +20,7 @@ enum state {
   MENU = 0,
   GAME = 1,
   PAUSED = 2,
-  LOSE = 3,
+  OVER = 3,
   SCORES = 4
 };
 
@@ -417,6 +417,10 @@ void playerEventHandler(SDL_Event e, Player *player)
         player->afterBurnerOverheat = true;
         player->afterBurnerFuel = 0;
       }
+      break;
+
+    case SDLK_ESCAPE:
+      gameState = PAUSED;
       break;
 
     default:
@@ -1130,11 +1134,11 @@ void draw(Player *player, Asteroid asteroids[], Button buttons[])
 {
   if (gameState == MENU)
   {
-    char buttonsText[2][10] = {"Play","Scores"};
+    char buttonsText[3][10] = {"Play", "Scores", "Quit"};
     SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
     SDL_RenderClear(gRenderer);
 
-    for (uint8_t i = 0; i < 2; i++) //Number of Buttons
+    for (uint8_t i = 0; i < 3; i++) //Number of Buttons
     {
       TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
       
@@ -1183,6 +1187,34 @@ void draw(Player *player, Asteroid asteroids[], Button buttons[])
     playerRender(*player);
   }
 
+  if (gameState == PAUSED)
+  {
+    char buttonsText[2][10] = {"Resume", "Menu"};
+    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0x77);
+    SDL_RenderFillRect(gRenderer, NULL);
+
+    for (uint8_t i = 0; i < 2; i++) //Number of Buttons
+    {
+      TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
+      
+      if (buttons[i].hovered)
+      {
+        SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
+        TTF_SetTextColor(buttonText, 255, 255, 255, 255);
+      }
+      else
+      {
+        SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
+        TTF_SetTextColor(buttonText, 0, 0, 0, 255);
+      }
+      
+      SDL_RenderFillRect(gRenderer, &buttons[i].rect);
+      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width/2 - strlen(buttonText->text) * 5,
+                                       buttons[i].posY + buttons[i].height/2 - HEIGHT/75);
+    }
+  }
+  
+
   SDL_RenderPresent(gRenderer);
 }
 
@@ -1200,37 +1232,50 @@ int main(int argc, char *args[])
   bool run = true;
   while (run)
   {
-    if (gameState == MENU)
+    if (gameState == MENU) /* Main Menu */
     {
       /* Buttons */
-      Button buttons[2];
+      Button buttons[3];
 
-      Button playButton;
+      Button playButton; /* Play */
       playButton.clicked = 0;
       playButton.hovered = 0;
       playButton.width = 200;
       playButton.height = 50;
       playButton.posX = (WIDTH - playButton.width)/2;
-      playButton.posY = 1*HEIGHT/3 - playButton.height/2;
+      playButton.posY = 1*HEIGHT/4 - playButton.height/2;
       playButton.rect.w = playButton.width;
       playButton.rect.h = playButton.height;
       playButton.rect.x = playButton.posX;
       playButton.rect.y = playButton.posY;
 
-      Button scoreButton;
+      Button scoreButton; /* Scores */
       scoreButton.clicked = 0;
       scoreButton.hovered = 0;
       scoreButton.width = 200;
       scoreButton.height = 50;
       scoreButton.posX = (WIDTH - scoreButton.width)/2;
-      scoreButton.posY = 2*HEIGHT/3 - scoreButton.height/2;
+      scoreButton.posY = 2*HEIGHT/4 - scoreButton.height/2;
       scoreButton.rect.w = scoreButton.width;
       scoreButton.rect.h = scoreButton.height;
       scoreButton.rect.x = scoreButton.posX;
       scoreButton.rect.y = scoreButton.posY;
+      
+      Button quitButton; /* Quit */
+      quitButton.clicked = 0;
+      quitButton.hovered = 0;
+      quitButton.width = 200;
+      quitButton.height = 50;
+      quitButton.posX = (WIDTH - quitButton.width)/2;
+      quitButton.posY = 3*HEIGHT/4 - quitButton.height/2;
+      quitButton.rect.w = quitButton.width;
+      quitButton.rect.h = quitButton.height;
+      quitButton.rect.x = quitButton.posX;
+      quitButton.rect.y = quitButton.posY;
 
       buttons[0] = playButton;
       buttons[1] = scoreButton;
+      buttons[2] = quitButton;
 
       SDL_Event e;
       bool exited = false;
@@ -1246,7 +1291,7 @@ int main(int argc, char *args[])
           }
         }
 
-        for (uint8_t i = 0; i < 2; i++)
+        for (uint8_t i = 0; i < 3; i++)
         {
           buttonStateUpdater(&buttons[i]);
         }
@@ -1254,13 +1299,24 @@ int main(int argc, char *args[])
         if (buttons[0].clicked == true)
         {
           gameState = GAME;
+        }
+
+        else if (buttons[2].clicked == true)
+        {
+          exited = true;
+          run = false;
+        }
+
+        if (gameState != MENU)
+        {
           break;
         }
+        
+        
         
         draw(NULL, NULL, buttons);
       }
     }
-  
 
     else if (gameState == GAME)
     {
@@ -1303,23 +1359,104 @@ int main(int argc, char *args[])
 
           playerEventHandler(e, &player);
         }
+
+        if (gameState == PAUSED)
+        {
+          Button buttons[2];
+
+          Button resumeButton;
+          resumeButton.clicked = 0;
+          resumeButton.hovered = 0;
+          resumeButton.width = 200;
+          resumeButton.height = 50;
+          resumeButton.posX = (WIDTH - resumeButton.width)/2;
+          resumeButton.posY = 1*HEIGHT/3 - resumeButton.height/2;
+          resumeButton.rect.w = resumeButton.width;
+          resumeButton.rect.h = resumeButton.height;
+          resumeButton.rect.x = resumeButton.posX;
+          resumeButton.rect.y = resumeButton.posY;
+
+          Button menuButton;
+          menuButton.clicked = 0;
+          menuButton.hovered = 0;
+          menuButton.width = 200;
+          menuButton.height = 50;
+          menuButton.posX = (WIDTH - menuButton.width)/2;
+          menuButton.posY = 2*HEIGHT/3 - menuButton.height/2;
+          menuButton.rect.w = menuButton.width;
+          menuButton.rect.h = menuButton.height;
+          menuButton.rect.x = menuButton.posX;
+          menuButton.rect.y = menuButton.posY;
+
+          buttons[0] = resumeButton;
+          buttons[1] = menuButton;
+
+          SDL_Event e;
+          bool paused = true;
+
+          while (paused)
+          {
+            while (SDL_PollEvent(&e) != 0)
+            {
+              if (e.type == SDL_EVENT_QUIT)
+              {
+                paused = false;
+                run = false;
+              }
+              
+              if (e.type == SDL_EVENT_KEY_DOWN && e.key.repeat == false)
+              {
+                if (e.key.key == SDLK_ESCAPE)
+                {
+                  gameState = GAME;
+                  paused = false;
+                }
+              }
+            }
+            for (uint8_t i = 0; i < 2; i++)
+            {
+              buttonStateUpdater(&buttons[i]);
+            }
+
+            if (buttons[0].clicked)
+            {
+              gameState = GAME;
+              paused = false;
+            }
+
+            if (buttons[1].clicked)
+            {
+              gameState = MENU;
+              paused = false;
+              exited = true;
+            }
+
+            if (gameState != PAUSED)
+            {
+              break;
+            }
+            
+            draw(NULL, NULL, buttons);
+
+          }
+        }
         deltaCalc(&dTimer);
 
         playerMovementHandler(&player, dTimer.deltaInSecs);
         playerBulletHander(&player, dTimer.deltaInSecs);
         asteroidHandler(asteroids, player.bullets, &player, &astSpawnTimer, &astNum, dTimer.deltaInSecs);
 
+        if (gameState != GAME)
+        {
+          break;
+        }
+        
+
         draw(&player, asteroids, NULL); /* Draw, Blit and Render */
       }
     }
-  
 
-    if (gameState == PAUSED)
-    {
-
-    }
-
-    if (gameState == LOSE)
+    if (gameState == OVER)
     {
 
     }
