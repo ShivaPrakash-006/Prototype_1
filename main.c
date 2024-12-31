@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <SDL3/SDL.h>
@@ -16,7 +17,7 @@
 #define HEIGHT 720
 #define ASTLIMIT 100
 
-enum state {
+enum State { /* Possible Game States */
   MENU = 0,
   GAME = 1,
   PAUSED = 2,
@@ -24,7 +25,15 @@ enum state {
   SCORES = 4
 };
 
-enum state gameState = MENU;
+enum Power { /* Possible PowerUps */
+  SHIELD = 0,
+  HEALTH = 1,
+  INFFUEL = 2,
+  INFBULL = 3
+};
+
+
+enum State gameState = MENU;
 
 SDL_Window *gWindow = NULL;
 SDL_Renderer *gRenderer = NULL;
@@ -132,37 +141,56 @@ typedef struct
   float velY; /* Player.maxVelY */
 
   SDL_FRect rect;
+  int bulletNum;
 
 } Bullet;
 
-void bulletDestroy(Bullet *bullet)
+/* Linked List */
+struct BulletList
 {
-  bullet->posX = -150;
-  bullet->posY = -150;
-  bullet->speed = 0;
-  bullet->width = 0;
-  bullet->height = 0;
-  bullet->damage = -1;
+
+  Bullet bullet;
+  struct BulletList *nextBullet;
+
+};
+
+void bulletDestroy(Bullet *bullet, struct BulletList *bullets)
+{
+  struct BulletList *bulletPtr, *prevPtr;
+  prevPtr = bullets;
+  bulletPtr = bullets->nextBullet;
+  while (bulletPtr != NULL)
+  {
+    if (bulletPtr->bullet.bulletNum == bullet->bulletNum)
+    {
+      prevPtr->nextBullet = bulletPtr->nextBullet;
+      free(bulletPtr);
+      break;
+    }
+    prevPtr = bulletPtr;
+    bulletPtr = bulletPtr->nextBullet;
+  }
 }
 
-void bulletsInit(Bullet *bullets, uint8_t bulletCount)
-{
-  for (uint8_t i = 0; i < bulletCount; i++)
-  {
-    (bullets+i)->posX = -150;
-    (bullets+i)->posY = -150;
-    (bullets+i)->speed = 0;
-    (bullets+i)->width = 0;
-    (bullets+i)->height = 0;
-    (bullets+i)->damage = -1;
-  }
-  
-}
+/* PowerUp Definitions */
+/* Struct */
+typedef struct {
+  float width;
+  float height;
+  float posX;
+  float posY;
+
+  SDL_FRect rect;
+
+  enum Power powerUp;
+} PowerUp;
 
 /* Player Definitions*/
 /* Struct */
 typedef struct
 {
+  short health; /* 3 */
+
   short width;  /* 10 */
   short height; /* 10 */
 
@@ -215,7 +243,7 @@ typedef struct
   Uint8 magSize; /* 10 */
   int bulletNum;
 
-  Bullet bullets[11]; /* magSize + 1 -> endByte*/
+  struct BulletList bullets;
 
   _Bool reloading;
   Uint32 reloadTime;
@@ -223,6 +251,15 @@ typedef struct
 
   Uint64 score;
   TTF_Text *scoreText;
+
+  bool shield;
+  bool heal;
+  bool infBulls;
+  bool infFuel;
+
+  Timer shieldTimer;
+  Timer infBullsTimer;
+  Timer infFuelTimer;
 
 } Player;
 
@@ -293,7 +330,16 @@ void playerInit(Player *player)
 
   player->icon = NULL;
 
-  bulletsInit(player->bullets, player->magSize - 1);
+  Bullet dummy;
+  dummy.posX = -150;
+  dummy.posY = -150;
+  dummy.speed = 0;
+  dummy.width = 0;
+  dummy.height = 0;
+  dummy.damage = -1;
+  dummy.bulletNum = 0;
+  player->bullets.bullet = dummy;
+  player->bullets.nextBullet = NULL;
 }
 
 void playerLogs(Player player)
@@ -332,7 +378,35 @@ void playerShoot(Player *player)
   bullet.rect.x = bullet.posX;
   bullet.rect.y = bullet.posY;
 
-  player->bullets[player->bulletNum] = bullet;
+  /* Linked List For Optimised Allocation */
+  struct BulletList *bulletPtr, *prevPtr, *newBullet;
+  int bulletNum = 1;
+  prevPtr = &player->bullets;
+  bulletPtr = player->bullets.nextBullet;
+  newBullet = (struct BulletList*) malloc(sizeof(struct BulletList));
+
+  while (bulletPtr != NULL)
+  {
+    if (bulletNum == bulletPtr->bullet.bulletNum)
+    {
+      prevPtr = bulletPtr;
+      bulletPtr = bulletPtr->nextBullet;
+      bulletNum++;
+    }
+    else
+    {
+      break;
+    }
+    
+    
+  }
+  
+  newBullet->bullet = bullet;
+  newBullet->bullet.bulletNum = bulletNum;
+  newBullet->nextBullet = bulletPtr;
+  prevPtr->nextBullet = newBullet;
+  
+
   player->bulletNum++;
 }
 
@@ -351,19 +425,22 @@ void playerBulletHander(Player *player, double delta)
     player->bulletNum = 0;
   }
   
-  for (int i = 0; i < player->magSize - 1; i++)
+  struct BulletList *bulletPtr = &player->bullets;
+  while(bulletPtr != NULL)
   {
     /* Moving the bullets */
-    player->bullets[i].posX += player->bullets[i].velX * player->bullets[i].speed * delta;
-    player->bullets[i].posY += player->bullets[i].velY * player->bullets[i].speed * delta;
+    bulletPtr->bullet.posX += bulletPtr->bullet.velX * bulletPtr->bullet.speed * delta;
+    bulletPtr->bullet.posY += bulletPtr->bullet.velY * bulletPtr->bullet.speed * delta;
     
-    player->bullets[i].rect.x = player->bullets[i].posX;
-    player->bullets[i].rect.y = player->bullets[i].posY;
+    bulletPtr->bullet.rect.x = bulletPtr->bullet.posX;
+    bulletPtr->bullet.rect.y = bulletPtr->bullet.posY;
     
-    if (!SDL_HasRectIntersectionFloat(&player->bullets[i].rect, &gCamRect) && player->bullets[i].damage != -1)
+    if (!SDL_HasRectIntersectionFloat(&bulletPtr->bullet.rect, &gCamRect) && bulletPtr->bullet.damage != -1)
     {
-      bulletDestroy(&player->bullets[i]);
+      bulletDestroy(&bulletPtr->bullet, &player->bullets);
     }
+
+    bulletPtr = bulletPtr->nextBullet;
   }
 
   timerCalcTicks(&player->bulletTimer);
@@ -783,11 +860,23 @@ void playerMovementHandler(Player *player, double delta)
   }
 }
 
+void playerPowerUpHandler(Player *player)
+{
+  if (player->shield) timerStart(&player->shieldTimer);
+  if (player->shieldTimer.started && player->shieldTimer.ticks > 500) timerStop(&player->shieldTimer);
+
+  if (player->infBulls) timerStart(&player->infBullsTimer);
+  if (player->shieldTimer.started && player->infBullsTimer.ticks > 500) timerStop(&player->infBullsTimer);
+
+  if (player->infFuel) timerStart(&player->infFuelTimer);
+  if (player->infFuelTimer.started && player->infFuelTimer.ticks > 500) timerStop(&player->infFuelTimer); 
+}
+
 void playerTextHandler(Player *player)
 {
   /* Score */
   char score[11]; /* Number of characters in "Score: 999" */
-  snprintf(score, 11, "Score: %i", player->score); /* To join string with int */
+  snprintf(score, 11, "Score: %u", player->score); /* To join string with int */
   player->scoreText = TTF_CreateText(gTextEngine, jetBrainsMono, score, 0);
 }
 
@@ -804,6 +893,27 @@ void playerRender(Player player)
   /* Render Stats */
   /* Score */
   TTF_DrawRendererText(player.scoreText, WIDTH - strlen(player.scoreText->text) * 10, 10);
+
+  /* PowerUps */
+  SDL_FRect ShieldRect = {10, 10, 20, 20};
+  SDL_FRect InfBulletsRect = {10, 10, 40, 20};
+  SDL_FRect InfFuelRect = {10, 10, 60, 20};
+
+  if (player.shieldTimer.started)
+  {
+    SDL_SetRenderDrawColor(gRenderer, 0, 0, 255, 255);
+    SDL_RenderFillRect(gRenderer, &ShieldRect);
+  }
+  else if (player.infBullsTimer.started)
+  {
+    SDL_SetRenderDrawColor(gRenderer, 255, 255, 0, 255);
+    SDL_RenderFillRect(gRenderer, &InfBulletsRect);
+  }
+  else if (player.infFuelTimer.started)
+  {
+    SDL_SetRenderDrawColor(gRenderer, 255, 0, 255, 255);
+    SDL_RenderFillRect(gRenderer, &InfFuelRect);
+  }
   
 }
 
@@ -840,6 +950,25 @@ typedef struct
 
   SDL_FRect rect;
 } Asteroid;
+
+/* PowerUp Functions */
+/* Functions */
+PowerUp powerUpSpawn(Asteroid *asteroid)
+{
+  int powerUp = SDL_rand(4);
+  PowerUp power;
+  power.width = 16;
+  power.height = 16;
+  power.posX = asteroid->posX + asteroid->width/2;
+  power.posY = asteroid->posY + asteroid->height/2;
+  power.rect.w = power.width;
+  power.rect.h = power.height;
+  power.rect.x = power.posX;
+  power.rect.y = power.posY;
+  power.powerUp = (enum Power) powerUp;
+
+  return power;
+}
 
 /* Functions */
 void asteroidInit(Asteroid *asteroids)
@@ -927,23 +1056,36 @@ void asteroidDestroy(Asteroid *asteroid)
   asteroid->rect.h = 0;
 }
 
-void asteroidHandler(Asteroid *asteroids, Bullet *bullets, Player *player, Timer *spawnTimer, Uint8 *astNum, double delta)
+void asteroidHandler(Asteroid *asteroids, PowerUp *powerUps, Player *player, Timer *spawnTimer, Uint8 *astNum, Uint8 *powerNum, double delta)
 {
   /* Asteroids - Bullet Collision Detector & Destroyer */
   for (uint8_t ast = 0; ast < ASTLIMIT; ast++)
   {
-    for (uint8_t bull = 0; bull < 10; bull++)
+    struct BulletList *ptr = &player->bullets;
+    while (ptr != NULL)
     {
-      if (SDL_HasRectIntersectionFloat(&(asteroids + ast)->rect, &(bullets + bull)->rect) && (asteroids + ast)->health > -1)
+      if (SDL_HasRectIntersectionFloat(&(asteroids + ast)->rect, &ptr->bullet.rect) && (asteroids + ast)->health > -1)
       {
-        (asteroids + ast)->health -= (bullets + bull)->damage; /* Reduce Health */
+        (asteroids + ast)->health -= ptr->bullet.damage; /* Reduce Health */
         if ((asteroids + ast)->health == 0)
         {
           asteroidDestroy(asteroids + ast); /* Destroy Objects */
-          bulletDestroy(bullets + bull);
+          bulletDestroy(&ptr->bullet, &player->bullets);
+          int powerChance = SDL_rand(10);
+          if (powerChance != 10)
+          {
+            if ((*powerNum) == 9)
+            {
+              (*powerNum) = 0;
+            }
+            powerUps[*powerNum] = powerUpSpawn(asteroids + ast);
+            (*powerNum)++;
+          }
           player->score++;
         }
       }
+
+      ptr = ptr->nextBullet;
     }
   }
 
@@ -1130,7 +1272,7 @@ bool load(Player *player) /* Get Game Objects and load their respective assets *
   return success;
 }
 
-void draw(Player *player, Asteroid asteroids[], Button buttons[])
+void draw(Player *player, Asteroid asteroids[], PowerUp powerUps[], Button buttons[])
 {
   if (gameState == MENU)
   {
@@ -1167,12 +1309,15 @@ void draw(Player *player, Asteroid asteroids[], Button buttons[])
     SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
     //SDL_RenderFillRect(gRenderer, &player.rect);
     
-    for (uint8_t i = 0; i < player->magSize - 1; i++)
+    struct BulletList *ptr = &player->bullets;
+    while (ptr != NULL)
     {
-      if (!SDL_HasRectIntersectionFloat(&player->rect, &player->bullets[i].rect) && player->bullets[i].damage != -1)
+      if (!SDL_HasRectIntersectionFloat(&player->rect, &ptr->bullet.rect) && ptr->bullet.damage != -1)
       {
-        SDL_RenderRect(gRenderer, &player->bullets[i].rect); /* Render Bullets only when they're a bit away from you*/
+        SDL_RenderRect(gRenderer, &ptr->bullet.rect); /* Render Bullets only when they're a bit away from you*/
       }
+
+      ptr = ptr->nextBullet;
     }
 
     for (uint8_t i = 0; i < ASTLIMIT; i++) /* Render Asteroids */
@@ -1182,6 +1327,29 @@ void draw(Player *player, Asteroid asteroids[], Button buttons[])
         SDL_RenderFillRect(gRenderer, &asteroids[i].rect);
       }
     }
+
+    for (uint8_t i = 0; i < 10; i++)
+    {
+      if (powerUps[i].powerUp == SHIELD)
+      {
+        SDL_SetRenderDrawColor(gRenderer, 0, 0, 255, 255);
+      }
+      else if (powerUps[i].powerUp == HEALTH)
+      {
+        SDL_SetRenderDrawColor(gRenderer, 255, 0, 0, 255);
+      }
+      else if (powerUps[i].powerUp == INFBULL)
+      {
+        SDL_SetRenderDrawColor(gRenderer, 0, 255, 255, 255);
+      }
+      else if (powerUps[i].powerUp == INFFUEL)
+      {
+        SDL_SetRenderDrawColor(gRenderer, 255, 0, 255, 255);
+      }
+      
+      SDL_RenderFillRect(gRenderer, &powerUps[i].rect);
+    }
+    
 
     playerTextHandler(player);
     playerRender(*player);
@@ -1312,9 +1480,7 @@ int main(int argc, char *args[])
           break;
         }
         
-        
-        
-        draw(NULL, NULL, buttons);
+        draw(NULL, NULL, NULL, buttons);
       }
     }
 
@@ -1341,6 +1507,9 @@ int main(int argc, char *args[])
 
       Timer astSpawnTimer;
       timerStart(&astSpawnTimer);
+
+      PowerUp powerUps[10];
+      uint8_t powerNum = 0;
 
       load(&player);
 
@@ -1436,7 +1605,7 @@ int main(int argc, char *args[])
               break;
             }
             
-            draw(NULL, NULL, buttons);
+            draw(NULL, NULL, NULL, buttons);
 
           }
         }
@@ -1444,21 +1613,20 @@ int main(int argc, char *args[])
 
         playerMovementHandler(&player, dTimer.deltaInSecs);
         playerBulletHander(&player, dTimer.deltaInSecs);
-        asteroidHandler(asteroids, player.bullets, &player, &astSpawnTimer, &astNum, dTimer.deltaInSecs);
+        asteroidHandler(asteroids, powerUps, &player, &astSpawnTimer, &astNum, &powerNum, dTimer.deltaInSecs);
 
         if (gameState != GAME)
         {
           break;
         }
         
-
-        draw(&player, asteroids, NULL); /* Draw, Blit and Render */
+        draw(&player, asteroids, powerUps, NULL); /* Draw, Blit and Render */
       }
     }
 
     if (gameState == OVER)
     {
-
+      
     }
 
   }
