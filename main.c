@@ -10,6 +10,11 @@
 #include <SDL3_net/SDL_net.h>
 #include <SDL3_rtf/SDL_rtf.h>
 
+#define uint8 unsigned char
+#define uint16 unsigned short
+#define uint32 unsigned int
+#define uint64 unsigned long
+
 #define PRINTERROR printf("%s", SDL_GetError());
 
 #define PI 3.14159265359
@@ -45,10 +50,10 @@ TTF_TextEngine *gTextEngine;
 /* Struct */
 typedef struct
 {
-  Uint32 startTicks;
-  Uint32 pausedTicks;
+  uint32 startTicks;
+  uint32 pausedTicks;
 
-  Uint32 ticks;
+  uint32 ticks;
 
   _Bool started;
   _Bool paused;
@@ -104,8 +109,8 @@ void timerCalcTicks(Timer *timer)
 /* Struct */
 typedef struct
 {
-  Uint32 frameStart;
-  Uint32 frameEnd;
+  uint32 frameStart;
+  uint32 frameEnd;
 
   double delta;
   double deltaInSecs;
@@ -140,7 +145,7 @@ typedef struct
   float velY; /* Player.maxVelY */
 
   SDL_FRect rect;
-  int bulletNum;
+  uint32 bulletNum;
 
 } Bullet;
 
@@ -179,10 +184,19 @@ typedef struct {
   float posX;
   float posY;
 
+  uint32 powerNum;
+
   SDL_FRect rect;
 
   enum Power powerUp;
 } PowerUp;
+
+struct PowerUpList {
+
+  PowerUp power;
+  struct PowerUpList *nextPowerUp;
+  
+};
 
 /* Player Definitions*/
 /* Struct */
@@ -239,16 +253,16 @@ typedef struct
 
   SDL_Texture *icon;
 
-  Uint8 magSize; /* 10 */
-  int bulletNum;
+  uint8 magSize; /* 10 */
+  uint32 bulletNum;
 
   struct BulletList bullets;
 
   _Bool reloading;
-  Uint32 reloadTime;
+  uint32 reloadTime;
   Timer bulletTimer;
 
-  Uint64 score;
+  uint64 score;
   TTF_Text *scoreText;
 
   bool shield;
@@ -379,7 +393,7 @@ void playerShoot(Player *player)
 
   /* Linked List For Optimised Allocation */
   struct BulletList *bulletPtr, *prevPtr, *newBullet;
-  int bulletNum = 1;
+  uint bulletNum = 1;
   prevPtr = &player->bullets;
   bulletPtr = player->bullets.nextBullet;
   newBullet = (struct BulletList*) malloc(sizeof(struct BulletList));
@@ -946,7 +960,7 @@ typedef struct
   _Float16 speed;
 
   short health;
-  int astNum;
+  uint32 astNum;
 
   SDL_FRect rect;
 } Asteroid;
@@ -959,7 +973,26 @@ struct AsteroidList
 
 /* PowerUp Functions */
 /* Functions */
-PowerUp powerUpSpawn(Asteroid *asteroid)
+struct PowerUpList powerUpInit()
+{
+  struct PowerUpList powerUps;
+
+  powerUps.power.width = 0;
+  powerUps.power.height = 0;
+  powerUps.power.posX = -200;
+  powerUps.power.posY = -200;
+  powerUps.power.powerNum = 0;
+  powerUps.power.rect.w = powerUps.power.width;
+  powerUps.power.rect.h = powerUps.power.height;
+  powerUps.power.rect.x = powerUps.power.posX;
+  powerUps.power.rect.y = powerUps.power.posY;
+
+  powerUps.nextPowerUp = NULL;
+  
+  return powerUps;
+}
+
+void powerUpSpawn(Asteroid *asteroid, struct PowerUpList *powerUps)
 {
   int powerUp = SDL_rand(4);
   PowerUp power;
@@ -973,7 +1006,30 @@ PowerUp powerUpSpawn(Asteroid *asteroid)
   power.rect.y = power.posY;
   power.powerUp = (enum Power) powerUp;
 
-  return power;
+  struct PowerUpList *powerPtr, *prevPtr, *newPower;
+  powerPtr = powerUps->nextPowerUp;
+  prevPtr = powerUps;
+  newPower = (struct PowerUpList*) malloc(sizeof(struct PowerUpList));
+  uint32 powerNum = 1;
+
+  while (powerPtr != NULL)
+  {
+    if (powerPtr->power.powerNum == powerNum)
+    {
+      prevPtr = powerPtr;
+      powerPtr = powerPtr->nextPowerUp;
+      powerNum++;
+    }
+    else
+    {
+      break;
+    }
+  }
+
+  newPower->power = power;
+  newPower->power.powerNum = powerNum;
+  newPower->nextPowerUp = powerPtr;
+  prevPtr->nextPowerUp = newPower;
 }
 
 /* Functions */
@@ -1054,7 +1110,7 @@ void asteroidSpawn(struct AsteroidList *asteroids)
   astPtr = asteroids->nextAsteroid;
   prevPtr = asteroids;
   newAst = (struct AsteroidList*) malloc(sizeof(struct AsteroidList));
-  int astNum = 1;
+  uint astNum = 1;
 
   while (astPtr != NULL)
   {
@@ -1096,7 +1152,7 @@ void asteroidDestroy(Asteroid *asteroid, struct AsteroidList *asteroids)
   }
 }
 
-void asteroidHandler(struct AsteroidList *asteroids, PowerUp *powerUps, Player *player, Timer *spawnTimer, Uint8 *powerNum, double delta)
+void asteroidHandler(struct AsteroidList *asteroids, struct PowerUpList *powerUps, Player *player, Timer *spawnTimer, double delta)
 {
   /* Asteroids - Bullet Collision Detector & Destroyer */
   struct AsteroidList *astPtr = asteroids->nextAsteroid;
@@ -1110,19 +1166,14 @@ void asteroidHandler(struct AsteroidList *asteroids, PowerUp *powerUps, Player *
         astPtr->asteroid.health -= bullPtr->bullet.damage; /* Reduce Health */
         if (astPtr->asteroid.health == 0)
         {
-          asteroidDestroy(&astPtr->asteroid, asteroids); /* Destroy Objects */
-          bulletDestroy(&bullPtr->bullet, &player->bullets);
-
           int powerChance = SDL_rand(10);
           if (powerChance != 10)
           {
-            if ((*powerNum) == 9)
-            {
-              (*powerNum) = 0;
-            }
-            powerUps[*powerNum] = powerUpSpawn(&astPtr->asteroid);
-            (*powerNum)++;
+            powerUpSpawn(&astPtr->asteroid, powerUps);
           }
+         
+          asteroidDestroy(&astPtr->asteroid, asteroids); /* Destroy Objects */
+          bulletDestroy(&bullPtr->bullet, &player->bullets);
 
           player->score++;
         }
@@ -1311,7 +1362,7 @@ bool load(Player *player) /* Get Game Objects and load their respective assets *
   return success;
 }
 
-void draw(Player *player, struct AsteroidList asteroids[], PowerUp powerUps[], Button buttons[])
+void draw(Player *player, struct AsteroidList *asteroids, struct PowerUpList *powerUps, Button buttons[])
 {
   if (gameState == MENU)
   {
@@ -1319,7 +1370,7 @@ void draw(Player *player, struct AsteroidList asteroids[], PowerUp powerUps[], B
     SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
     SDL_RenderClear(gRenderer);
 
-    for (uint8_t i = 0; i < 3; i++) //Number of Buttons
+    for (uint8 i = 0; i < 3; i++) //Number of Buttons
     {
       TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
       
@@ -1369,26 +1420,29 @@ void draw(Player *player, struct AsteroidList asteroids[], PowerUp powerUps[], B
       astPtr = astPtr->nextAsteroid;
     }
 
-    for (uint8_t i = 0; i < 10; i++)
+    struct PowerUpList *powerPtr = powerUps;
+    while (powerPtr != NULL)
     {
-      if (powerUps[i].powerUp == SHIELD)
+      if (powerPtr->power.powerUp == SHIELD)
       {
         SDL_SetRenderDrawColor(gRenderer, 0, 0, 255, 255);
       }
-      else if (powerUps[i].powerUp == HEALTH)
+      else if (powerPtr->power.powerUp == HEALTH)
       {
         SDL_SetRenderDrawColor(gRenderer, 255, 0, 0, 255);
       }
-      else if (powerUps[i].powerUp == INFBULL)
+      else if (powerPtr->power.powerUp == INFBULL)
       {
         SDL_SetRenderDrawColor(gRenderer, 0, 255, 255, 255);
       }
-      else if (powerUps[i].powerUp == INFFUEL)
+      else if (powerPtr->power.powerUp == INFFUEL)
       {
         SDL_SetRenderDrawColor(gRenderer, 255, 0, 255, 255);
       }
       
-      SDL_RenderFillRect(gRenderer, &powerUps[i].rect);
+      SDL_RenderFillRect(gRenderer, &powerPtr->power.rect);
+
+      powerPtr = powerPtr->nextPowerUp;
     }
     
 
@@ -1402,7 +1456,7 @@ void draw(Player *player, struct AsteroidList asteroids[], PowerUp powerUps[], B
     SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0x77);
     SDL_RenderFillRect(gRenderer, NULL);
 
-    for (uint8_t i = 0; i < 2; i++) //Number of Buttons
+    for (uint8 i = 0; i < 2; i++) //Number of Buttons
     {
       TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
       
@@ -1500,7 +1554,7 @@ int main(int argc, char *args[])
           }
         }
 
-        for (uint8_t i = 0; i < 3; i++)
+        for (uint8 i = 0; i < 3; i++)
         {
           buttonStateUpdater(&buttons[i]);
         }
@@ -1546,8 +1600,7 @@ int main(int argc, char *args[])
       Timer astSpawnTimer;
       timerStart(&astSpawnTimer);
 
-      PowerUp powerUps[10];
-      uint8_t powerNum = 0;
+      struct PowerUpList powerUps = powerUpInit();
 
       load(&player);
 
@@ -1620,7 +1673,7 @@ int main(int argc, char *args[])
                 }
               }
             }
-            for (uint8_t i = 0; i < 2; i++)
+            for (uint8 i = 0; i < 2; i++)
             {
               buttonStateUpdater(&buttons[i]);
             }
@@ -1651,14 +1704,14 @@ int main(int argc, char *args[])
 
         playerMovementHandler(&player, dTimer.deltaInSecs);
         playerBulletHander(&player, dTimer.deltaInSecs);
-        asteroidHandler(&asteroids, powerUps, &player, &astSpawnTimer, &powerNum, dTimer.deltaInSecs);
+        asteroidHandler(&asteroids, &powerUps, &player, &astSpawnTimer, dTimer.deltaInSecs);
 
         if (gameState != GAME)
         {
           break;
         }
         
-        draw(&player, &asteroids, powerUps, NULL); /* Draw, Blit and Render */
+        draw(&player, &asteroids, &powerUps, NULL); /* Draw, Blit and Render */
       }
     }
 
