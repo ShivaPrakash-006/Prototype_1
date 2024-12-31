@@ -15,7 +15,6 @@
 #define PI 3.14159265359
 #define WIDTH 1280
 #define HEIGHT 720
-#define ASTLIMIT 100
 
 enum State { /* Possible Game States */
   MENU = 0,
@@ -266,6 +265,8 @@ typedef struct
 /* Functions */
 void playerInit(Player *player)
 {
+  player->score = 0;
+
   player->width = 50;
   player->height = 50;
 
@@ -330,15 +331,13 @@ void playerInit(Player *player)
 
   player->icon = NULL;
 
-  Bullet dummy;
-  dummy.posX = -150;
-  dummy.posY = -150;
-  dummy.speed = 0;
-  dummy.width = 0;
-  dummy.height = 0;
-  dummy.damage = -1;
-  dummy.bulletNum = 0;
-  player->bullets.bullet = dummy;
+  player->bullets.bullet.posX = -150;
+  player->bullets.bullet.posY = -150;
+  player->bullets.bullet.speed = 0;
+  player->bullets.bullet.width = 0;
+  player->bullets.bullet.height = 0;
+  player->bullets.bullet.damage = -1;
+  player->bullets.bullet.bulletNum = 0;
   player->bullets.nextBullet = NULL;
 }
 
@@ -947,9 +946,16 @@ typedef struct
   _Float16 speed;
 
   short health;
+  int astNum;
 
   SDL_FRect rect;
 } Asteroid;
+
+struct AsteroidList
+{
+  Asteroid asteroid;
+  struct AsteroidList *nextAsteroid;
+};
 
 /* PowerUp Functions */
 /* Functions */
@@ -971,20 +977,23 @@ PowerUp powerUpSpawn(Asteroid *asteroid)
 }
 
 /* Functions */
-void asteroidInit(Asteroid *asteroids)
+struct AsteroidList asteroidInit()
 {
-  for (uint8_t i = 0; i < ASTLIMIT; i++)
-  {
-    asteroids[i].health = -1;
-    asteroids[i].width = 0;
-    asteroids[i].height = 0;
-    asteroids[i].posX = -100;
-    asteroids[i].posY = -100;
-    asteroids[i].speed = 0;
-  }
+  struct AsteroidList asteroids;
+  asteroids.asteroid.astNum = 0;
+  asteroids.asteroid.width = 0;
+  asteroids.asteroid.height = 0;
+  asteroids.asteroid.health = -1;
+  asteroids.asteroid.rect.x = -100;
+  asteroids.asteroid.rect.y = -100;
+  asteroids.asteroid.rect.w = 0;
+  asteroids.asteroid.rect.h = 0;
+  asteroids.nextAsteroid = NULL;
+
+  return asteroids;
 }
 
-void asteroidSpawn(Asteroid *asteroids, Timer *spawnTimer, Uint8 *astNum)
+void asteroidSpawn(struct AsteroidList *asteroids)
 {
   Asteroid asteroid; /* SDL_rand(Number Of Outcomes) + lowerValue -> lowerValue to NumberOfOutcome - 1*/
   asteroid.health = SDL_rand(3) + 1; /* 1 - 3 */
@@ -1041,36 +1050,69 @@ void asteroidSpawn(Asteroid *asteroids, Timer *spawnTimer, Uint8 *astNum)
   asteroid.rect.w = asteroid.width;
   asteroid.rect.h = asteroid.height;
 
-  asteroids[*astNum] = asteroid;
-  (*astNum)++;
+  struct AsteroidList *astPtr, *prevPtr, *newAst;
+  astPtr = asteroids->nextAsteroid;
+  prevPtr = asteroids;
+  newAst = (struct AsteroidList*) malloc(sizeof(struct AsteroidList));
+  int astNum = 1;
+
+  while (astPtr != NULL)
+  {
+    if (astPtr->asteroid.astNum == astNum)
+    {
+      astNum++;
+      prevPtr = astPtr;
+      astPtr = astPtr->nextAsteroid;
+    }
+    else
+    {
+      break;
+    }
+  }
+
+  newAst->asteroid = asteroid;
+  newAst->asteroid.astNum = astNum;
+  newAst->nextAsteroid = astPtr;
+  prevPtr->nextAsteroid = newAst;
+  
 }
 
-void asteroidDestroy(Asteroid *asteroid)
+void asteroidDestroy(Asteroid *asteroid, struct AsteroidList *asteroids)
 {
-  asteroid->width = 0;
-  asteroid->height = 0;
-  asteroid->health = -1;
-  asteroid->rect.x = -100;
-  asteroid->rect.y = -100;
-  asteroid->rect.w = 0;
-  asteroid->rect.h = 0;
+  struct AsteroidList *astPtr, *prevPtr;
+  astPtr = asteroids->nextAsteroid;
+  prevPtr = asteroids;
+
+  while (astPtr != NULL)
+  {
+    if (astPtr->asteroid.astNum == asteroid->astNum)
+    {
+      prevPtr->nextAsteroid = astPtr->nextAsteroid;
+      free(astPtr);
+      break;
+    }
+    prevPtr = astPtr;
+    astPtr = astPtr->nextAsteroid;
+  }
 }
 
-void asteroidHandler(Asteroid *asteroids, PowerUp *powerUps, Player *player, Timer *spawnTimer, Uint8 *astNum, Uint8 *powerNum, double delta)
+void asteroidHandler(struct AsteroidList *asteroids, PowerUp *powerUps, Player *player, Timer *spawnTimer, Uint8 *powerNum, double delta)
 {
   /* Asteroids - Bullet Collision Detector & Destroyer */
-  for (uint8_t ast = 0; ast < ASTLIMIT; ast++)
+  struct AsteroidList *astPtr = asteroids->nextAsteroid;
+  while(astPtr != NULL)
   {
-    struct BulletList *ptr = &player->bullets;
-    while (ptr != NULL)
+    struct BulletList *bullPtr = player->bullets.nextBullet;
+    while (bullPtr != NULL)
     {
-      if (SDL_HasRectIntersectionFloat(&(asteroids + ast)->rect, &ptr->bullet.rect) && (asteroids + ast)->health > -1)
+      if (SDL_HasRectIntersectionFloat(&astPtr->asteroid.rect, &bullPtr->bullet.rect) && astPtr->asteroid.health > -1)
       {
-        (asteroids + ast)->health -= ptr->bullet.damage; /* Reduce Health */
-        if ((asteroids + ast)->health == 0)
+        astPtr->asteroid.health -= bullPtr->bullet.damage; /* Reduce Health */
+        if (astPtr->asteroid.health == 0)
         {
-          asteroidDestroy(asteroids + ast); /* Destroy Objects */
-          bulletDestroy(&ptr->bullet, &player->bullets);
+          asteroidDestroy(&astPtr->asteroid, asteroids); /* Destroy Objects */
+          bulletDestroy(&bullPtr->bullet, &player->bullets);
+
           int powerChance = SDL_rand(10);
           if (powerChance != 10)
           {
@@ -1078,61 +1120,58 @@ void asteroidHandler(Asteroid *asteroids, PowerUp *powerUps, Player *player, Tim
             {
               (*powerNum) = 0;
             }
-            powerUps[*powerNum] = powerUpSpawn(asteroids + ast);
+            powerUps[*powerNum] = powerUpSpawn(&astPtr->asteroid);
             (*powerNum)++;
           }
+
           player->score++;
         }
       }
-
-      ptr = ptr->nextBullet;
+      bullPtr = bullPtr->nextBullet;
     }
+    astPtr = astPtr->nextAsteroid;
   }
 
   /* Asteroid Spawner */
-  if (spawnTimer->ticks > SDL_rand(3000) + 2000 && (*astNum) < ASTLIMIT)
+  if (spawnTimer->ticks > SDL_rand(3000) + 2000)
   {
-    if ((*astNum) > ASTLIMIT)
-    {
-      (*astNum) = 0;
-    }
-
-    asteroidSpawn(asteroids, spawnTimer, astNum); 
+    asteroidSpawn(asteroids); 
     timerStop(spawnTimer); /* Stop and Start to Reset Timer */
     timerStart(spawnTimer);
   }
 
   /* Asteroid Movement */
-  for (uint8_t i = 0; i < ASTLIMIT; i++)
+  astPtr = asteroids->nextAsteroid;
+  while (astPtr != NULL)
   {
-    asteroids[i].posX += asteroids[i].velX * asteroids[i].speed * delta;
-    asteroids[i].posY += asteroids[i].velY * asteroids[i].speed * delta;
+    astPtr->asteroid.posX += astPtr->asteroid.velX * astPtr->asteroid.speed * delta;
+    astPtr->asteroid.posY += astPtr->asteroid.velY * astPtr->asteroid.speed * delta;
 
     /* Screen Looping */
-    if (asteroids[i].posX + asteroids[i].width < 0)
+    if (astPtr->asteroid.posX + astPtr->asteroid.width < 0)
     {
-      asteroids[i].posX = WIDTH; /* Left to Right */
+      astPtr->asteroid.posX = WIDTH; /* Left to Right */
     }
 
-    else if (asteroids[i].posX > WIDTH)
+    else if (astPtr->asteroid.posX > WIDTH)
     {
-      asteroids[i].posX = 0 - asteroids[i].width; /* Right to Left */
+      astPtr->asteroid.posX = 0 - astPtr->asteroid.width; /* Right to Left */
     }
 
-    if (asteroids[i].posY + asteroids[i].height < 0)
+    if (astPtr->asteroid.posY + astPtr->asteroid.height < 0)
     {
-      asteroids[i].posY = HEIGHT; /* Top to Bottom */
+      astPtr->asteroid.posY = HEIGHT; /* Top to Bottom */
     }
 
-    else if (asteroids[i].posY > HEIGHT)
+    else if (astPtr->asteroid.posY > HEIGHT)
     {
-      asteroids[i].posY = 0 - asteroids[i].height; /* Bottom to Top */
+      astPtr->asteroid.posY = 0 - astPtr->asteroid.height; /* Bottom to Top */
     }
     
-  
+    astPtr->asteroid.rect.x = astPtr->asteroid.posX;
+    astPtr->asteroid.rect.y = astPtr->asteroid.posY;
 
-    asteroids[i].rect.x = asteroids[i].posX;
-    asteroids[i].rect.y = asteroids[i].posY;
+    astPtr = astPtr->nextAsteroid;
   }
 
   timerCalcTicks(spawnTimer);
@@ -1272,7 +1311,7 @@ bool load(Player *player) /* Get Game Objects and load their respective assets *
   return success;
 }
 
-void draw(Player *player, Asteroid asteroids[], PowerUp powerUps[], Button buttons[])
+void draw(Player *player, struct AsteroidList asteroids[], PowerUp powerUps[], Button buttons[])
 {
   if (gameState == MENU)
   {
@@ -1309,23 +1348,25 @@ void draw(Player *player, Asteroid asteroids[], PowerUp powerUps[], Button butto
     SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
     //SDL_RenderFillRect(gRenderer, &player.rect);
     
-    struct BulletList *ptr = &player->bullets;
-    while (ptr != NULL)
+    struct BulletList *bullPtr = &player->bullets;
+    while (bullPtr != NULL)
     {
-      if (!SDL_HasRectIntersectionFloat(&player->rect, &ptr->bullet.rect) && ptr->bullet.damage != -1)
+      if (!SDL_HasRectIntersectionFloat(&player->rect, &bullPtr->bullet.rect) && bullPtr->bullet.damage != -1)
       {
-        SDL_RenderRect(gRenderer, &ptr->bullet.rect); /* Render Bullets only when they're a bit away from you*/
+        SDL_RenderRect(gRenderer, &bullPtr->bullet.rect); /* Render Bullets only when they're a bit away from you*/
       }
 
-      ptr = ptr->nextBullet;
+      bullPtr = bullPtr->nextBullet;
     }
 
-    for (uint8_t i = 0; i < ASTLIMIT; i++) /* Render Asteroids */
+    struct AsteroidList *astPtr = asteroids;
+    while(astPtr != NULL) /* Render Asteroids */
     {
-      if (asteroids[i].health != -1)
+      if (astPtr->asteroid.health != -1)
       {
-        SDL_RenderFillRect(gRenderer, &asteroids[i].rect);
+        SDL_RenderFillRect(gRenderer, &astPtr->asteroid.rect);
       }
+      astPtr = astPtr->nextAsteroid;
     }
 
     for (uint8_t i = 0; i < 10; i++)
@@ -1499,11 +1540,8 @@ int main(int argc, char *args[])
       playerInit(&player);
       
       /* Asteroids */
-      Asteroid asteroids[ASTLIMIT + 1];
+      struct AsteroidList asteroids = asteroidInit();
 
-
-      Uint8 astNum = 0;
-      asteroidInit(asteroids);
 
       Timer astSpawnTimer;
       timerStart(&astSpawnTimer);
@@ -1613,14 +1651,14 @@ int main(int argc, char *args[])
 
         playerMovementHandler(&player, dTimer.deltaInSecs);
         playerBulletHander(&player, dTimer.deltaInSecs);
-        asteroidHandler(asteroids, powerUps, &player, &astSpawnTimer, &astNum, &powerNum, dTimer.deltaInSecs);
+        asteroidHandler(&asteroids, powerUps, &player, &astSpawnTimer, &powerNum, dTimer.deltaInSecs);
 
         if (gameState != GAME)
         {
           break;
         }
         
-        draw(&player, asteroids, powerUps, NULL); /* Draw, Blit and Render */
+        draw(&player, &asteroids, powerUps, NULL); /* Draw, Blit and Render */
       }
     }
 
