@@ -48,7 +48,7 @@ TTF_TextEngine *gTextEngine;
 
 /* Timer Definitions */
 /* Struct */
-typedef struct
+typedef struct Timer
 {
   uint32 startTicks;
   uint32 pausedTicks;
@@ -61,6 +61,19 @@ typedef struct
 } Timer;
 
 /* Functions */
+Timer timerInit()
+{
+  Timer timer;
+
+  timer.startTicks = 0;
+  timer.pausedTicks = 0;
+  timer.started = false;
+  timer.paused = false;
+  timer.ticks = 0;
+
+  return timer;
+}
+
 void timerStart(Timer *timer)
 {
   timer->started = true;
@@ -75,6 +88,7 @@ void timerStop(Timer *timer)
   timer->started = false;
   timer->paused = false;
 
+  timer->ticks = 0;
   timer->startTicks = 0;
   timer->pausedTicks = 0;
 }
@@ -107,7 +121,7 @@ void timerCalcTicks(Timer *timer)
 
 /* Delta Timer Definitions */
 /* Struct */
-typedef struct
+typedef struct DeltaTimer
 {
   uint32 frameStart;
   uint32 frameEnd;
@@ -129,7 +143,7 @@ void deltaCalc(DeltaTimer *dTimer)
 
 /* Bullet Definitions */
 /* Struct */
-typedef struct
+typedef struct Bullet
 {
   int width; /* 10 */
   int height; /* 10 */
@@ -150,17 +164,16 @@ typedef struct
 } Bullet;
 
 /* Linked List */
-struct BulletList
+typedef struct BulletList
 {
-
   Bullet bullet;
   struct BulletList *nextBullet;
 
-};
+} BulletList;
 
 void bulletDestroy(Bullet *bullet, struct BulletList *bullets)
 {
-  struct BulletList *bulletPtr, *prevPtr;
+  BulletList *bulletPtr, *prevPtr;
   prevPtr = bullets;
   bulletPtr = bullets->nextBullet;
   while (bulletPtr != NULL)
@@ -178,7 +191,8 @@ void bulletDestroy(Bullet *bullet, struct BulletList *bullets)
 
 /* PowerUp Definitions */
 /* Struct */
-typedef struct {
+typedef struct PowerUp
+{
   float width;
   float height;
   float posX;
@@ -191,16 +205,55 @@ typedef struct {
   enum Power powerUp;
 } PowerUp;
 
-struct PowerUpList {
+typedef struct PowerUpList {
 
   PowerUp power;
   struct PowerUpList *nextPowerUp;
   
-};
+} PowerUpList;
+
+/* Functions */
+struct PowerUpList powerUpInit()
+{
+  PowerUpList powerUps;
+
+  powerUps.power.width = 0;
+  powerUps.power.height = 0;
+  powerUps.power.posX = -200;
+  powerUps.power.posY = -200;
+  powerUps.power.powerNum = 0;
+  powerUps.power.rect.w = powerUps.power.width;
+  powerUps.power.rect.h = powerUps.power.height;
+  powerUps.power.rect.x = powerUps.power.posX;
+  powerUps.power.rect.y = powerUps.power.posY;
+
+  powerUps.nextPowerUp = NULL;
+  
+  return powerUps;
+}
+
+void powerUpDestroy(PowerUp *powerUp, PowerUpList *powerUps)
+{
+  PowerUpList *powerPtr, *prevPtr;
+  powerPtr = powerUps->nextPowerUp;
+  prevPtr = powerUps;
+
+  while (powerPtr != NULL)
+  {
+    if (powerUp->powerNum == powerPtr->power.powerNum)
+    {
+      prevPtr->nextPowerUp = powerPtr->nextPowerUp;
+      free(powerPtr);
+      break;
+    }
+    prevPtr = powerPtr;
+    powerPtr = powerPtr->nextPowerUp;
+  }
+}
 
 /* Player Definitions*/
 /* Struct */
-typedef struct
+typedef struct Player
 {
   short health; /* 3 */
 
@@ -256,7 +309,7 @@ typedef struct
   uint8 magSize; /* 10 */
   uint32 bulletNum;
 
-  struct BulletList bullets;
+  BulletList bullets;
 
   _Bool reloading;
   uint32 reloadTime;
@@ -271,8 +324,11 @@ typedef struct
   bool infFuel;
 
   Timer shieldTimer;
+  uint32 shieldTime;
   Timer infBullsTimer;
+  uint32 infBullsTime;
   Timer infFuelTimer;
+  uint32 infFuelTime;
 
 } Player;
 
@@ -334,11 +390,7 @@ void playerInit(Player *player)
   player->magSize = 11;
   player->bulletNum = 0;
 
-  player->bulletTimer.startTicks = 0;
-  player->bulletTimer.pausedTicks = 0;
-  player->bulletTimer.started = 0;
-  player->bulletTimer.paused = 0;
-  player->bulletTimer.ticks = 0;
+  Timer bulletTimer = timerInit();
 
   player->reloadTime = 5000;
   player->reloading = false;
@@ -353,6 +405,18 @@ void playerInit(Player *player)
   player->bullets.bullet.damage = -1;
   player->bullets.bullet.bulletNum = 0;
   player->bullets.nextBullet = NULL;
+
+  /* PowerUps */
+  player->shield = false;
+  player->shieldTime = 5000;
+  player->shieldTimer = timerInit();
+  player->heal = false;
+  player->infBulls = false;
+  player->infBullsTime = 5000;
+  player->infBullsTimer = timerInit();
+  player->infFuel = false;
+  player->infFuelTime = 5000;
+  player->infFuelTimer = timerInit();
 }
 
 void playerLogs(Player player)
@@ -392,11 +456,11 @@ void playerShoot(Player *player)
   bullet.rect.y = bullet.posY;
 
   /* Linked List For Optimised Allocation */
-  struct BulletList *bulletPtr, *prevPtr, *newBullet;
+  BulletList *bulletPtr, *prevPtr, *newBullet;
   uint bulletNum = 1;
   prevPtr = &player->bullets;
   bulletPtr = player->bullets.nextBullet;
-  newBullet = (struct BulletList*) malloc(sizeof(struct BulletList));
+  newBullet = (BulletList*) malloc(sizeof(BulletList));
 
   while (bulletPtr != NULL)
   {
@@ -419,7 +483,6 @@ void playerShoot(Player *player)
   newBullet->nextBullet = bulletPtr;
   prevPtr->nextBullet = newBullet;
   
-
   player->bulletNum++;
 }
 
@@ -438,7 +501,7 @@ void playerBulletHander(Player *player, double delta)
     player->bulletNum = 0;
   }
   
-  struct BulletList *bulletPtr = &player->bullets;
+  BulletList *bulletPtr = &player->bullets;
   while(bulletPtr != NULL)
   {
     /* Moving the bullets */
@@ -493,14 +556,14 @@ void playerEventHandler(SDL_Event e, Player *player)
       break;
 
     case SDLK_K:
-      if (!player->reloading)
+      if (!player->reloading || player->infBullsTimer.started)
       {
         playerShoot(player);
       }
       break;
     
     case SDLK_L:
-      if (!player->afterBurnerOverheat && player->afterBurnerFuel >= player->maxAfterBurnerFuel)
+      if (!player->afterBurnerOverheat && player->afterBurnerFuel >= player->maxAfterBurnerFuel && !player->infFuelTimer.started);
       {
         player->posX += player->maxVelX * player->leapDistance;
         player->posY += player->maxVelY * player->leapDistance;
@@ -857,7 +920,7 @@ void playerMovementHandler(Player *player, double delta)
   {
     player->afterBurnerFuel += player->afterBurnerRefuelRate;
   }
-  else if (player->afterburning && player->afterBurnerFuel > 0)
+  else if (player->afterburning && player->afterBurnerFuel > 0 && !player->infFuelTimer.started)
   {
     player->afterBurnerFuel -= player->afterBurnerDepletionRate;
   }
@@ -873,16 +936,76 @@ void playerMovementHandler(Player *player, double delta)
   }
 }
 
-void playerPowerUpHandler(Player *player)
+void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
 {
-  if (player->shield) timerStart(&player->shieldTimer);
-  if (player->shieldTimer.started && player->shieldTimer.ticks > 500) timerStop(&player->shieldTimer);
+  PowerUpList *powerPtr = powerUps->nextPowerUp;
+  while (powerPtr != NULL)
+  {
+    if (SDL_HasRectIntersectionFloat(&player->rect, &powerPtr->power.rect))
+    {
+      if (powerPtr->power.powerUp == SHIELD)
+      {
+        player->shield = true;
+      }
+      else if (powerPtr->power.powerUp == HEALTH)
+      {
+        player->heal = true;
+      }
+      else if (powerPtr->power.powerUp == INFBULL)
+      {
+        player->infBulls = true;
+      }
+      else if (powerPtr->power.powerUp == INFFUEL)
+      {
+        player->infFuel = true;
+      }
+      
+      powerUpDestroy(&powerPtr->power, powerUps);
+    }
+    powerPtr = powerPtr->nextPowerUp;
+  }
+  
 
-  if (player->infBulls) timerStart(&player->infBullsTimer);
-  if (player->shieldTimer.started && player->infBullsTimer.ticks > 500) timerStop(&player->infBullsTimer);
 
-  if (player->infFuel) timerStart(&player->infFuelTimer);
-  if (player->infFuelTimer.started && player->infFuelTimer.ticks > 500) timerStop(&player->infFuelTimer); 
+  if (player->shield) 
+  {
+    timerStart(&player->shieldTimer);
+    player->shield = false;
+  }
+  if (player->shieldTimer.started && player->shieldTimer.ticks > player->shieldTime)
+  {
+    timerStop(&player->shieldTimer);
+  }
+
+  if (player->heal)
+  {
+    player->health++;
+    player->heal = false;
+  }
+
+  if (player->infBulls)
+  {
+    timerStart(&player->infBullsTimer);
+    player->infBulls = false;
+  }
+  if (player->infBullsTimer.started && player->infBullsTimer.ticks > player->infBullsTime)
+  {
+    timerStop(&player->infBullsTimer);
+  }
+
+  if (player->infFuel) 
+  {
+    timerStart(&player->infFuelTimer);
+    player->infFuel = false;
+  }
+  if (player->infFuelTimer.started && player->infFuelTimer.ticks > player->infFuelTime) 
+  {
+    timerStop(&player->infFuelTimer); 
+  }
+
+  timerCalcTicks(&player->shieldTimer);
+  timerCalcTicks(&player->infBullsTimer);
+  timerCalcTicks(&player->infFuelTimer);
 }
 
 void playerTextHandler(Player *player)
@@ -908,21 +1031,21 @@ void playerRender(Player player)
   TTF_DrawRendererText(player.scoreText, WIDTH - strlen(player.scoreText->text) * 10, 10);
 
   /* PowerUps */
-  SDL_FRect ShieldRect = {10, 10, 20, 20};
-  SDL_FRect InfBulletsRect = {10, 10, 40, 20};
-  SDL_FRect InfFuelRect = {10, 10, 60, 20};
+  SDL_FRect ShieldRect = {20, 20, 10, 10};
+  SDL_FRect InfBulletsRect = {40, 20, 10, 10};
+  SDL_FRect InfFuelRect = {60, 20, 10, 10};
 
   if (player.shieldTimer.started)
   {
     SDL_SetRenderDrawColor(gRenderer, 0, 0, 255, 255);
     SDL_RenderFillRect(gRenderer, &ShieldRect);
   }
-  else if (player.infBullsTimer.started)
+  if (player.infBullsTimer.started)
   {
     SDL_SetRenderDrawColor(gRenderer, 255, 255, 0, 255);
     SDL_RenderFillRect(gRenderer, &InfBulletsRect);
   }
-  else if (player.infFuelTimer.started)
+  if (player.infFuelTimer.started)
   {
     SDL_SetRenderDrawColor(gRenderer, 255, 0, 255, 255);
     SDL_RenderFillRect(gRenderer, &InfFuelRect);
@@ -946,7 +1069,7 @@ void playerDestroy(Player *player)
 
 /* Asteroid Definitions */
 /* Struct */
-typedef struct 
+typedef struct Asteroid
 {
   short width; /* 20 */
   short height; /* 20 */
@@ -965,34 +1088,15 @@ typedef struct
   SDL_FRect rect;
 } Asteroid;
 
-struct AsteroidList
+typedef struct AsteroidList
 {
   Asteroid asteroid;
   struct AsteroidList *nextAsteroid;
-};
+} AsteroidList;
 
 /* PowerUp Functions */
-/* Functions */
-struct PowerUpList powerUpInit()
-{
-  struct PowerUpList powerUps;
 
-  powerUps.power.width = 0;
-  powerUps.power.height = 0;
-  powerUps.power.posX = -200;
-  powerUps.power.posY = -200;
-  powerUps.power.powerNum = 0;
-  powerUps.power.rect.w = powerUps.power.width;
-  powerUps.power.rect.h = powerUps.power.height;
-  powerUps.power.rect.x = powerUps.power.posX;
-  powerUps.power.rect.y = powerUps.power.posY;
-
-  powerUps.nextPowerUp = NULL;
-  
-  return powerUps;
-}
-
-void powerUpSpawn(Asteroid *asteroid, struct PowerUpList *powerUps)
+void powerUpSpawn(Asteroid *asteroid, PowerUpList *powerUps)
 {
   int powerUp = SDL_rand(4);
   PowerUp power;
@@ -1006,10 +1110,10 @@ void powerUpSpawn(Asteroid *asteroid, struct PowerUpList *powerUps)
   power.rect.y = power.posY;
   power.powerUp = (enum Power) powerUp;
 
-  struct PowerUpList *powerPtr, *prevPtr, *newPower;
+  PowerUpList *powerPtr, *prevPtr, *newPower;
   powerPtr = powerUps->nextPowerUp;
   prevPtr = powerUps;
-  newPower = (struct PowerUpList*) malloc(sizeof(struct PowerUpList));
+  newPower = (PowerUpList*) malloc(sizeof(PowerUpList));
   uint32 powerNum = 1;
 
   while (powerPtr != NULL)
@@ -1033,9 +1137,9 @@ void powerUpSpawn(Asteroid *asteroid, struct PowerUpList *powerUps)
 }
 
 /* Functions */
-struct AsteroidList asteroidInit()
+AsteroidList asteroidInit()
 {
-  struct AsteroidList asteroids;
+  AsteroidList asteroids;
   asteroids.asteroid.astNum = 0;
   asteroids.asteroid.width = 0;
   asteroids.asteroid.height = 0;
@@ -1049,7 +1153,7 @@ struct AsteroidList asteroidInit()
   return asteroids;
 }
 
-void asteroidSpawn(struct AsteroidList *asteroids)
+void asteroidSpawn(AsteroidList *asteroids)
 {
   Asteroid asteroid; /* SDL_rand(Number Of Outcomes) + lowerValue -> lowerValue to NumberOfOutcome - 1*/
   asteroid.health = SDL_rand(3) + 1; /* 1 - 3 */
@@ -1106,10 +1210,10 @@ void asteroidSpawn(struct AsteroidList *asteroids)
   asteroid.rect.w = asteroid.width;
   asteroid.rect.h = asteroid.height;
 
-  struct AsteroidList *astPtr, *prevPtr, *newAst;
+  AsteroidList *astPtr, *prevPtr, *newAst;
   astPtr = asteroids->nextAsteroid;
   prevPtr = asteroids;
-  newAst = (struct AsteroidList*) malloc(sizeof(struct AsteroidList));
+  newAst = (AsteroidList*) malloc(sizeof(AsteroidList));
   uint astNum = 1;
 
   while (astPtr != NULL)
@@ -1133,9 +1237,9 @@ void asteroidSpawn(struct AsteroidList *asteroids)
   
 }
 
-void asteroidDestroy(Asteroid *asteroid, struct AsteroidList *asteroids)
+void asteroidDestroy(Asteroid *asteroid, AsteroidList *asteroids)
 {
-  struct AsteroidList *astPtr, *prevPtr;
+  AsteroidList *astPtr, *prevPtr;
   astPtr = asteroids->nextAsteroid;
   prevPtr = asteroids;
 
@@ -1152,13 +1256,13 @@ void asteroidDestroy(Asteroid *asteroid, struct AsteroidList *asteroids)
   }
 }
 
-void asteroidHandler(struct AsteroidList *asteroids, struct PowerUpList *powerUps, Player *player, Timer *spawnTimer, double delta)
+void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *player, Timer *spawnTimer, double delta)
 {
   /* Asteroids - Bullet Collision Detector & Destroyer */
-  struct AsteroidList *astPtr = asteroids->nextAsteroid;
+  AsteroidList *astPtr = asteroids->nextAsteroid;
   while(astPtr != NULL)
   {
-    struct BulletList *bullPtr = player->bullets.nextBullet;
+    BulletList *bullPtr = player->bullets.nextBullet;
     while (bullPtr != NULL)
     {
       if (SDL_HasRectIntersectionFloat(&astPtr->asteroid.rect, &bullPtr->bullet.rect) && astPtr->asteroid.health > -1)
@@ -1231,7 +1335,7 @@ void asteroidHandler(struct AsteroidList *asteroids, struct PowerUpList *powerUp
 
 /* Buttons */
 /* Structure */
-typedef struct 
+typedef struct Button
 {
   float width;
   float height;
@@ -1362,7 +1466,7 @@ bool load(Player *player) /* Get Game Objects and load their respective assets *
   return success;
 }
 
-void draw(Player *player, struct AsteroidList *asteroids, struct PowerUpList *powerUps, Button buttons[])
+void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button buttons[])
 {
   if (gameState == MENU)
   {
@@ -1399,7 +1503,7 @@ void draw(Player *player, struct AsteroidList *asteroids, struct PowerUpList *po
     SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
     //SDL_RenderFillRect(gRenderer, &player.rect);
     
-    struct BulletList *bullPtr = &player->bullets;
+    BulletList *bullPtr = &player->bullets;
     while (bullPtr != NULL)
     {
       if (!SDL_HasRectIntersectionFloat(&player->rect, &bullPtr->bullet.rect) && bullPtr->bullet.damage != -1)
@@ -1410,7 +1514,7 @@ void draw(Player *player, struct AsteroidList *asteroids, struct PowerUpList *po
       bullPtr = bullPtr->nextBullet;
     }
 
-    struct AsteroidList *astPtr = asteroids;
+    AsteroidList *astPtr = asteroids;
     while(astPtr != NULL) /* Render Asteroids */
     {
       if (astPtr->asteroid.health != -1)
@@ -1420,7 +1524,7 @@ void draw(Player *player, struct AsteroidList *asteroids, struct PowerUpList *po
       astPtr = astPtr->nextAsteroid;
     }
 
-    struct PowerUpList *powerPtr = powerUps;
+    PowerUpList *powerPtr = powerUps;
     while (powerPtr != NULL)
     {
       if (powerPtr->power.powerUp == SHIELD)
@@ -1594,13 +1698,13 @@ int main(int argc, char *args[])
       playerInit(&player);
       
       /* Asteroids */
-      struct AsteroidList asteroids = asteroidInit();
+      AsteroidList asteroids = asteroidInit();
 
 
       Timer astSpawnTimer;
       timerStart(&astSpawnTimer);
 
-      struct PowerUpList powerUps = powerUpInit();
+      PowerUpList powerUps = powerUpInit();
 
       load(&player);
 
@@ -1704,6 +1808,7 @@ int main(int argc, char *args[])
 
         playerMovementHandler(&player, dTimer.deltaInSecs);
         playerBulletHander(&player, dTimer.deltaInSecs);
+        playerPowerUpHandler(&player, &powerUps);
         asteroidHandler(&asteroids, &powerUps, &player, &astSpawnTimer, dTimer.deltaInSecs);
 
         if (gameState != GAME)
