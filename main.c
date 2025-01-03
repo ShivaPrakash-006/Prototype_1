@@ -31,11 +31,16 @@ enum State { /* Possible Game States */
 
 enum Power { /* Possible PowerUps */
   SHIELD = 0,
-  HEALTH = 1,
+  ARMOR = 1,
   INFFUEL = 2,
   INFBULL = 3
 };
 
+enum Size {
+  SMALL = 0,
+  NORMAL = 1,
+  LARGE = 2
+};
 
 enum State gameState = MENU;
 
@@ -61,7 +66,7 @@ typedef struct Timer
 } Timer;
 
 /* Functions */
-Timer timerInit()
+Timer timerInit(void)
 {
   Timer timer;
 
@@ -161,6 +166,8 @@ typedef struct Bullet
   SDL_FRect rect;
   uint32 bulletNum;
 
+  Timer lifeTimer;
+
 } Bullet;
 
 /* Linked List */
@@ -213,7 +220,7 @@ typedef struct PowerUpList {
 } PowerUpList;
 
 /* Functions */
-struct PowerUpList powerUpInit()
+struct PowerUpList powerUpInit(void)
 {
   PowerUpList powerUps;
 
@@ -255,7 +262,7 @@ void powerUpDestroy(PowerUp *powerUp, PowerUpList *powerUps)
 /* Struct */
 typedef struct Player
 {
-  short health; /* 3 */
+  short armor; /* 3 */
 
   short width;  /* 10 */
   short height; /* 10 */
@@ -319,7 +326,7 @@ typedef struct Player
   TTF_Text *scoreText;
 
   bool shield;
-  bool heal;
+  bool repair;
   bool infBulls;
   bool infFuel;
 
@@ -410,7 +417,7 @@ void playerInit(Player *player)
   player->shield = false;
   player->shieldTime = 5000;
   player->shieldTimer = timerInit();
-  player->heal = false;
+  player->repair = false;
   player->infBulls = false;
   player->infBullsTime = 5000;
   player->infBullsTimer = timerInit();
@@ -454,6 +461,8 @@ void playerShoot(Player *player)
   bullet.rect.h = bullet.height;
   bullet.rect.x = bullet.posX;
   bullet.rect.y = bullet.posY;
+
+  bullet.lifeTimer = timerInit();
 
   /* Linked List For Optimised Allocation */
   BulletList *bulletPtr, *prevPtr, *newBullet;
@@ -947,9 +956,9 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
       {
         player->shield = true;
       }
-      else if (powerPtr->power.powerUp == HEALTH)
+      else if (powerPtr->power.powerUp == ARMOR)
       {
-        player->heal = true;
+        player->repair = true;
       }
       else if (powerPtr->power.powerUp == INFBULL)
       {
@@ -977,10 +986,10 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
     timerStop(&player->shieldTimer);
   }
 
-  if (player->heal)
+  if (player->repair)
   {
-    player->health++;
-    player->heal = false;
+    player->armor++;
+    player->repair = false;
   }
 
   if (player->infBulls)
@@ -1071,18 +1080,21 @@ void playerDestroy(Player *player)
 /* Struct */
 typedef struct Asteroid
 {
+  enum Size size;
+
   short width; /* 20 */
   short height; /* 20 */
   
   float posX;
   float posY;
 
-  _Float16 velX;
-  _Float16 velY;
+  float velX;
+  float velY;
+  float rotVel;
 
-  _Float16 speed;
+  float speed;
+  bool bounce;
 
-  short health;
   uint32 astNum;
 
   SDL_FRect rect;
@@ -1098,7 +1110,6 @@ typedef struct AsteroidList
 
 void powerUpSpawn(Asteroid *asteroid, PowerUpList *powerUps)
 {
-  int powerUp = SDL_rand(4);
   PowerUp power;
   power.width = 16;
   power.height = 16;
@@ -1108,7 +1119,7 @@ void powerUpSpawn(Asteroid *asteroid, PowerUpList *powerUps)
   power.rect.h = power.height;
   power.rect.x = power.posX;
   power.rect.y = power.posY;
-  power.powerUp = (enum Power) powerUp;
+  power.powerUp = (enum Power) SDL_rand(4);
 
   PowerUpList *powerPtr, *prevPtr, *newPower;
   powerPtr = powerUps->nextPowerUp;
@@ -1137,13 +1148,12 @@ void powerUpSpawn(Asteroid *asteroid, PowerUpList *powerUps)
 }
 
 /* Functions */
-AsteroidList asteroidInit()
+AsteroidList asteroidInit(void)
 {
   AsteroidList asteroids;
   asteroids.asteroid.astNum = 0;
   asteroids.asteroid.width = 0;
   asteroids.asteroid.height = 0;
-  asteroids.asteroid.health = -1;
   asteroids.asteroid.rect.x = -100;
   asteroids.asteroid.rect.y = -100;
   asteroids.asteroid.rect.w = 0;
@@ -1153,15 +1163,37 @@ AsteroidList asteroidInit()
   return asteroids;
 }
 
-void asteroidSpawn(AsteroidList *asteroids)
+void asteroidSpawn(AsteroidList *asteroids, Asteroid *refAsteroid)
 {
   Asteroid asteroid; /* SDL_rand(Number Of Outcomes) + lowerValue -> lowerValue to NumberOfOutcome - 1*/
-  asteroid.health = SDL_rand(3) + 1; /* 1 - 3 */
+  
+  if (refAsteroid == NULL) /* Normal Spawn */
+  {
+    asteroid.size = (enum Size) SDL_rand(3);
+  }
+  else /* Spawn Based On Destroyed Asteroid */
+  {
+    asteroid.size = refAsteroid->size - 1;
+  }
 
-  asteroid.width = SDL_rand(30) + 40; /* 40 - 69 */
-  asteroid.height = SDL_rand(30) + 40; /* 40 - 69 */
-
-  asteroid.speed = SDL_rand(100) + 100;
+  if (asteroid.size == SMALL)
+  {
+    asteroid.width = 30;
+    asteroid.height = 30;
+    asteroid.speed = SDL_rand(100) + 300;
+  }
+  else if (asteroid.size == NORMAL)
+  {
+    asteroid.width = 80;
+    asteroid.height = 80;
+    asteroid.speed = SDL_rand(100) + 200;
+  }
+  else
+  {
+    asteroid.width = 200;
+    asteroid.height = 200;
+    asteroid.speed = SDL_rand(100) + 100;
+  }
 
   switch (SDL_rand(4))
   {
@@ -1204,6 +1236,12 @@ void asteroidSpawn(AsteroidList *asteroids)
   default:
     break;
   }
+
+  if (refAsteroid != NULL) /* Spawn Around Destroyed Asteroid */
+  {
+    asteroid.posX = refAsteroid->posX + SDL_rand(refAsteroid->width);
+    asteroid.posY = refAsteroid->posY + SDL_rand(refAsteroid->height);
+  }
   
   asteroid.rect.x = asteroid.posX;
   asteroid.rect.y = asteroid.posY;
@@ -1234,15 +1272,22 @@ void asteroidSpawn(AsteroidList *asteroids)
   newAst->asteroid.astNum = astNum;
   newAst->nextAsteroid = astPtr;
   prevPtr->nextAsteroid = newAst;
-  
 }
 
 void asteroidDestroy(Asteroid *asteroid, AsteroidList *asteroids)
 {
+  if (asteroid->size != SMALL) /* Spawn Asteroids Of Larger Asteroid */
+  {
+    uint8 num = SDL_rand(4) + 3; /* Number Of Asteroids to Spawn */
+    for (uint8 astNum = 0; astNum < num; astNum++)
+    {
+      asteroidSpawn(asteroids, asteroid);
+    }
+  }
+
   AsteroidList *astPtr, *prevPtr;
   astPtr = asteroids->nextAsteroid;
   prevPtr = asteroids;
-
   while (astPtr != NULL)
   {
     if (astPtr->asteroid.astNum == asteroid->astNum)
@@ -1262,35 +1307,56 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
   AsteroidList *astPtr = asteroids->nextAsteroid;
   while(astPtr != NULL)
   {
+    bool destroyed = false;
     BulletList *bullPtr = player->bullets.nextBullet;
-    while (bullPtr != NULL)
+    while (bullPtr != NULL && !destroyed)
     {
-      if (SDL_HasRectIntersectionFloat(&astPtr->asteroid.rect, &bullPtr->bullet.rect) && astPtr->asteroid.health > -1)
+      if (SDL_HasRectIntersectionFloat(&astPtr->asteroid.rect, &bullPtr->bullet.rect))
       {
-        astPtr->asteroid.health -= bullPtr->bullet.damage; /* Reduce Health */
-        if (astPtr->asteroid.health == 0)
+        int powerChance = SDL_rand(10);
+        if (powerChance != 10)
         {
-          int powerChance = SDL_rand(10);
-          if (powerChance != 10)
-          {
-            powerUpSpawn(&astPtr->asteroid, powerUps);
-          }
-         
-          asteroidDestroy(&astPtr->asteroid, asteroids); /* Destroy Objects */
-          bulletDestroy(&bullPtr->bullet, &player->bullets);
-
-          player->score++;
+          powerUpSpawn(&astPtr->asteroid, powerUps);
         }
+        
+        asteroidDestroy(&astPtr->asteroid, asteroids); /* Destroy Objects */
+        bulletDestroy(&bullPtr->bullet, &player->bullets);
+        destroyed = true;
+
+        player->score++;
       }
       bullPtr = bullPtr->nextBullet;
+    }
+
+    if (!destroyed)
+    {
+      if (SDL_HasRectIntersectionFloat(&astPtr->asteroid.rect, &player->rect))
+      {
+        asteroidDestroy(&astPtr->asteroid, asteroids);
+        if (!player->shieldTimer.started)
+        {
+          player->armor--;
+        }
+      }
+    }
+
+    AsteroidList *astPtr2 = asteroids->nextAsteroid;
+    while (astPtr2 != NULL && !destroyed)
+    {
+      if (SDL_HasRectIntersectionFloat(&astPtr->asteroid.rect, &astPtr2->asteroid.rect) && astPtr->asteroid.astNum != astPtr2->asteroid.astNum)
+      {
+        astPtr->asteroid.bounce = true;
+        astPtr2->asteroid.bounce = true;
+      }
+      astPtr2 = astPtr2->nextAsteroid;
     }
     astPtr = astPtr->nextAsteroid;
   }
 
   /* Asteroid Spawner */
-  if (spawnTimer->ticks > SDL_rand(3000) + 2000)
+  if (spawnTimer->ticks > SDL_rand(1000) + 2000)
   {
-    asteroidSpawn(asteroids); 
+    asteroidSpawn(asteroids, NULL); 
     timerStop(spawnTimer); /* Stop and Start to Reset Timer */
     timerStart(spawnTimer);
   }
@@ -1299,6 +1365,11 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
   astPtr = asteroids->nextAsteroid;
   while (astPtr != NULL)
   {
+    if (astPtr->asteroid.bounce) /* Bouncing */
+    {
+      astPtr->asteroid.bounce = false;
+    }
+
     astPtr->asteroid.posX += astPtr->asteroid.velX * astPtr->asteroid.speed * delta;
     astPtr->asteroid.posY += astPtr->asteroid.velY * astPtr->asteroid.speed * delta;
 
@@ -1377,12 +1448,7 @@ bool buttonStateUpdater(Button *button)
   }
 }
 
-void gameOver(Player *player)
-{
-  
-}
-
-bool init()
+bool init(void)
 {
   bool success = true;
 
@@ -1517,10 +1583,7 @@ void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button
     AsteroidList *astPtr = asteroids;
     while(astPtr != NULL) /* Render Asteroids */
     {
-      if (astPtr->asteroid.health != -1)
-      {
-        SDL_RenderFillRect(gRenderer, &astPtr->asteroid.rect);
-      }
+      SDL_RenderFillRect(gRenderer, &astPtr->asteroid.rect);
       astPtr = astPtr->nextAsteroid;
     }
 
@@ -1531,7 +1594,7 @@ void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button
       {
         SDL_SetRenderDrawColor(gRenderer, 0, 0, 255, 255);
       }
-      else if (powerPtr->power.powerUp == HEALTH)
+      else if (powerPtr->power.powerUp == ARMOR)
       {
         SDL_SetRenderDrawColor(gRenderer, 255, 0, 0, 255);
       }
@@ -1580,12 +1643,19 @@ void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button
                                        buttons[i].posY + buttons[i].height/2 - HEIGHT/75);
     }
   }
+
+  if (gameState == OVER)
+  {
+    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0x77);
+    SDL_RenderClear(gRenderer);
+  }
+  
   
 
   SDL_RenderPresent(gRenderer);
 }
 
-void quit()
+void quit(void)
 {
   SDL_DestroyWindow(gWindow);
   SDL_DestroyRenderer(gRenderer);
@@ -1692,6 +1762,10 @@ int main(int argc, char *args[])
       dTimer.frameStart = SDL_GetPerformanceCounter();
       dTimer.frameEnd = 0;
       dTimer.delta = 0;
+
+      /* Game Timer */
+      Timer gameTimer = timerInit();
+      timerStart(&gameTimer);
 
       /* Player */
       Player player;
@@ -1805,6 +1879,7 @@ int main(int argc, char *args[])
           }
         }
         deltaCalc(&dTimer);
+        timerCalcTicks(&gameTimer);
 
         playerMovementHandler(&player, dTimer.deltaInSecs);
         playerBulletHander(&player, dTimer.deltaInSecs);
@@ -1823,8 +1898,24 @@ int main(int argc, char *args[])
     if (gameState == OVER)
     {
       
-    }
 
+      SDL_Event e;
+      bool exited = false;
+
+      while (!exited)
+      {
+        while (SDL_PollEvent(&e) != 0)
+        {
+          if (e.type == SDL_EVENT_QUIT)
+          {
+            exited = true;
+            run = false;
+          }
+        }
+
+        draw(NULL, NULL, NULL, NULL);
+      }
+    }
   }
 
   quit(); // Quit
