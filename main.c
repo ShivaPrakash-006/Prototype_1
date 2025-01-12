@@ -44,9 +44,9 @@ enum Size {
 
 enum State gameState = MENU;
 
+
 SDL_Window *gWindow = NULL;
 SDL_Renderer *gRenderer = NULL;
-SDL_FRect gCamRect = {0, 0, WIDTH, HEIGHT};
 
 TTF_Font *jetBrainsMono;
 TTF_TextEngine *gTextEngine;
@@ -98,6 +98,12 @@ void timerStop(Timer *timer)
   timer->pausedTicks = 0;
 }
 
+void timerReset(Timer *timer)
+{
+  timerStop(timer);
+  timerStart(timer);
+}
+
 void timerPause(Timer *timer)
 {
   if (timer->started && !timer->paused)
@@ -133,7 +139,6 @@ typedef struct DeltaTimer
 
   double delta;
   double deltaInSecs;
-
 } DeltaTimer;
 
 /* Functions */
@@ -166,6 +171,7 @@ typedef struct Bullet
   SDL_FRect rect;
   uint32 bulletNum;
 
+  uint32 lifeTime;
   Timer lifeTimer;
 
 } Bullet;
@@ -313,14 +319,12 @@ typedef struct Player
 
   SDL_Texture *icon;
 
-  uint8 magSize; /* 10 */
-  uint32 bulletNum;
+  _Bool shooting;
 
   BulletList bullets;
 
-  _Bool reloading;
-  uint32 reloadTime;
   Timer bulletTimer;
+  uint32 shootDelay; /* 200 */
 
   uint64 score;
   TTF_Text *scoreText;
@@ -394,13 +398,10 @@ void playerInit(Player *player)
   player->leapDistance = 100;
 
   /* Player Bullets */
-  player->magSize = 11;
-  player->bulletNum = 0;
-
-  Timer bulletTimer = timerInit();
-
-  player->reloadTime = 5000;
-  player->reloading = false;
+  player->shooting = false;
+  player->bulletTimer = timerInit();
+  timerStart(&player->bulletTimer);
+  player->shootDelay = 200;
 
   player->icon = NULL;
 
@@ -463,6 +464,8 @@ void playerShoot(Player *player)
   bullet.rect.y = bullet.posY;
 
   bullet.lifeTimer = timerInit();
+  bullet.lifeTime = 3000; /* 3 secs */
+  timerStart(&bullet.lifeTimer);
 
   /* Linked List For Optimised Allocation */
   BulletList *bulletPtr, *prevPtr, *newBullet;
@@ -483,31 +486,20 @@ void playerShoot(Player *player)
     {
       break;
     }
-    
-    
   }
   
   newBullet->bullet = bullet;
   newBullet->bullet.bulletNum = bulletNum;
   newBullet->nextBullet = bulletPtr;
   prevPtr->nextBullet = newBullet;
-  
-  player->bulletNum++;
 }
 
 void playerBulletHander(Player *player, double delta)
 {
-  if (player->bulletNum > player->magSize - 2 && !player->reloading) 
+  if (player->shooting && player->bulletTimer.ticks > player->shootDelay)
   {
-    player->reloading = true;
-    timerStart(&player->bulletTimer);
-  }
-
-  if (player->bulletTimer.ticks > player->reloadTime && player->reloading)
-  {
-    timerStop(&player->bulletTimer);
-    player->reloading = false;
-    player->bulletNum = 0;
+    playerShoot(player);
+    timerReset(&player->bulletTimer);
   }
   
   BulletList *bulletPtr = &player->bullets;
@@ -519,8 +511,30 @@ void playerBulletHander(Player *player, double delta)
     
     bulletPtr->bullet.rect.x = bulletPtr->bullet.posX;
     bulletPtr->bullet.rect.y = bulletPtr->bullet.posY;
+
+    /* Looping */
+    if (bulletPtr->bullet.posX + bulletPtr->bullet.width < 0)
+    {
+      bulletPtr->bullet.posX = WIDTH; /* Left to Right */
+    }
+
+    else if (bulletPtr->bullet.posX > WIDTH)
+    {
+      bulletPtr->bullet.posX = 0 - bulletPtr->bullet.width; /* Right to Left */
+    }
+
+    if (bulletPtr->bullet.posY + bulletPtr->bullet.height < 0)
+    {
+      bulletPtr->bullet.posY = HEIGHT; /* Top to Bottom */
+    }
+
+    else if (bulletPtr->bullet.posY > HEIGHT)
+    {
+      bulletPtr->bullet.posY = 0 - bulletPtr->bullet.height; /* Bottom to Top */
+    }
     
-    if (!SDL_HasRectIntersectionFloat(&bulletPtr->bullet.rect, &gCamRect) && bulletPtr->bullet.damage != -1)
+    timerCalcTicks(&bulletPtr->bullet.lifeTimer);
+    if (bulletPtr->bullet.lifeTimer.ticks > bulletPtr->bullet.lifeTime)
     {
       bulletDestroy(&bulletPtr->bullet, &player->bullets);
     }
@@ -537,56 +551,53 @@ void playerEventHandler(SDL_Event e, Player *player)
   {
     switch (e.key.key)
     {
-    case SDLK_W:
-      player->moving = true;
-      break;
+      case SDLK_W:
+        player->moving = true;
+        break;
 
-    case SDLK_S:
-      player->braking = true;
-      break;
+      case SDLK_S:
+        player->braking = true;
+        break;
 
-    case SDLK_A:
-      player->rotVel -= 1;
-      break;
+      case SDLK_A:
+        player->rotVel -= 1;
+        break;
 
-    case SDLK_D:
-      player->rotVel += 1;
-      break;
+      case SDLK_D:
+        player->rotVel += 1;
+        break;
 
-    case SDLK_F1:
-      playerLogs(*player);
-      break;
+      case SDLK_F1:
+        playerLogs(*player);
+        break;
 
-    case SDLK_J:
-      if (player->afterBurnerFuel > 0 && !player->afterBurnerOverheat)
-      {
-        player->afterburning = true;
-      }
-      break;
+      case SDLK_J:
+        if (player->afterBurnerFuel > 0 && !player->afterBurnerOverheat)
+        {
+          player->afterburning = true;
+        }
+        break;
 
-    case SDLK_K:
-      if (!player->reloading || player->infBullsTimer.started)
-      {
-        playerShoot(player);
-      }
-      break;
-    
-    case SDLK_L:
-      if (!player->afterBurnerOverheat && player->afterBurnerFuel >= player->maxAfterBurnerFuel && !player->infFuelTimer.started);
-      {
-        player->posX += player->maxVelX * player->leapDistance;
-        player->posY += player->maxVelY * player->leapDistance;
-        player->afterBurnerOverheat = true;
-        player->afterBurnerFuel = 0;
-      }
-      break;
+      case SDLK_K:
+        player->shooting = true;
+        break;
 
-    case SDLK_ESCAPE:
-      gameState = PAUSED;
-      break;
+      case SDLK_L:
+        if (!player->afterBurnerOverheat && player->afterBurnerFuel >= player->maxAfterBurnerFuel && !player->infFuelTimer.started);
+        {
+          player->posX += player->maxVelX * player->leapDistance;
+          player->posY += player->maxVelY * player->leapDistance;
+          player->afterBurnerOverheat = true;
+          player->afterBurnerFuel = 0;
+        }
+        break;
 
-    default:
-      break;
+      case SDLK_ESCAPE:
+        gameState = PAUSED;
+        break;
+
+      default:
+        break;
     }
   }
   else if (e.type == SDL_EVENT_KEY_UP & e.key.repeat == 0)
@@ -611,6 +622,9 @@ void playerEventHandler(SDL_Event e, Player *player)
 
     case SDLK_J:
       player->afterburning = false;
+    
+    case SDLK_K:
+      player->shooting = false;
 
     default:
       break;
@@ -1020,8 +1034,8 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
 void playerTextHandler(Player *player)
 {
   /* Score */
-  char score[11]; /* Number of characters in "Score: 999" */
-  snprintf(score, 11, "Score: %u", player->score); /* To join string with int */
+  char *score; /* Number of characters in "Score: 999" */
+  SDL_asprintf(&score, "Score: %u", player->score); /* To join string with int */
   player->scoreText = TTF_CreateText(gTextEngine, jetBrainsMono, score, 0);
 }
 
@@ -1093,7 +1107,6 @@ typedef struct Asteroid
   float rotVel;
 
   float speed;
-  bool bounce;
 
   uint32 astNum;
 
@@ -1313,8 +1326,8 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
     {
       if (SDL_HasRectIntersectionFloat(&astPtr->asteroid.rect, &bullPtr->bullet.rect))
       {
-        int powerChance = SDL_rand(10);
-        if (powerChance != 10)
+        int powerChance = SDL_rand(50);
+        if (powerChance == 25)
         {
           powerUpSpawn(&astPtr->asteroid, powerUps);
         }
@@ -1340,36 +1353,20 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
       }
     }
 
-    AsteroidList *astPtr2 = asteroids->nextAsteroid;
-    while (astPtr2 != NULL && !destroyed)
-    {
-      if (SDL_HasRectIntersectionFloat(&astPtr->asteroid.rect, &astPtr2->asteroid.rect) && astPtr->asteroid.astNum != astPtr2->asteroid.astNum)
-      {
-        astPtr->asteroid.bounce = true;
-        astPtr2->asteroid.bounce = true;
-      }
-      astPtr2 = astPtr2->nextAsteroid;
-    }
     astPtr = astPtr->nextAsteroid;
   }
 
   /* Asteroid Spawner */
-  if (spawnTimer->ticks > SDL_rand(1000) + 2000)
+  if (spawnTimer->ticks > SDL_rand(1000) + 4000)
   {
     asteroidSpawn(asteroids, NULL); 
-    timerStop(spawnTimer); /* Stop and Start to Reset Timer */
-    timerStart(spawnTimer);
+    timerReset(spawnTimer); /* Reset Timer */
   }
 
   /* Asteroid Movement */
   astPtr = asteroids->nextAsteroid;
   while (astPtr != NULL)
   {
-    if (astPtr->asteroid.bounce) /* Bouncing */
-    {
-      astPtr->asteroid.bounce = false;
-    }
-
     astPtr->asteroid.posX += astPtr->asteroid.velX * astPtr->asteroid.speed * delta;
     astPtr->asteroid.posY += astPtr->asteroid.velY * astPtr->asteroid.speed * delta;
 
@@ -1450,6 +1447,7 @@ bool buttonStateUpdater(Button *button)
 
 bool init(void)
 {
+  printf("=== Start Of Program ===\n");
   bool success = true;
 
 
@@ -1532,7 +1530,7 @@ bool load(Player *player) /* Get Game Objects and load their respective assets *
   return success;
 }
 
-void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button buttons[])
+void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button *buttons, float *fps)
 {
   if (gameState == MENU)
   {
@@ -1611,7 +1609,11 @@ void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button
 
       powerPtr = powerPtr->nextPowerUp;
     }
-    
+
+    char *fpsStr;
+    SDL_asprintf(&fpsStr, "%f", 1/(*fps));
+    TTF_Text *fpsText = TTF_CreateText(gTextEngine, jetBrainsMono, fpsStr, 0);
+    TTF_DrawRendererText(fpsText, WIDTH - 70, HEIGHT - 20);
 
     playerTextHandler(player);
     playerRender(*player);
@@ -1650,8 +1652,6 @@ void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button
     SDL_RenderClear(gRenderer);
   }
   
-  
-
   SDL_RenderPresent(gRenderer);
 }
 
@@ -1749,7 +1749,7 @@ int main(int argc, char *args[])
           break;
         }
         
-        draw(NULL, NULL, NULL, buttons);
+        draw(NULL, NULL, NULL, buttons, NULL);
       }
     }
 
@@ -1766,6 +1766,10 @@ int main(int argc, char *args[])
       /* Game Timer */
       Timer gameTimer = timerInit();
       timerStart(&gameTimer);
+
+      uint64 frameStart;
+      uint64 frameEnd;
+      float fps;
 
       /* Player */
       Player player;
@@ -1874,10 +1878,12 @@ int main(int argc, char *args[])
               break;
             }
             
-            draw(NULL, NULL, NULL, buttons);
+            draw(NULL, NULL, NULL, buttons, NULL);
 
           }
         }
+        frameStart = SDL_GetPerformanceCounter();
+
         deltaCalc(&dTimer);
         timerCalcTicks(&gameTimer);
 
@@ -1891,7 +1897,11 @@ int main(int argc, char *args[])
           break;
         }
         
-        draw(&player, &asteroids, &powerUps, NULL); /* Draw, Blit and Render */
+        draw(&player, &asteroids, &powerUps, NULL, &fps); /* Draw, Blit and Render */
+
+        frameEnd = SDL_GetPerformanceCounter();
+        fps = (frameEnd - frameStart)/(float) SDL_GetPerformanceFrequency();
+        //printf("FPS: %f\n", 1/fps);
       }
     }
 
@@ -1913,11 +1923,12 @@ int main(int argc, char *args[])
           }
         }
 
-        draw(NULL, NULL, NULL, NULL);
+        draw(NULL, NULL, NULL, NULL, NULL);
       }
     }
   }
 
   quit(); // Quit
+  printf("=== End Of Program ===\n");
   return 0;
 }
