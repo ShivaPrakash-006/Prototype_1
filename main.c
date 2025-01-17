@@ -138,7 +138,6 @@ typedef struct DeltaTimer
   uint32 frameEnd;
 
   double delta;
-  double deltaInSecs;
 } DeltaTimer;
 
 /* Functions */
@@ -147,8 +146,7 @@ void deltaCalc(DeltaTimer *dTimer)
   dTimer->frameEnd = dTimer->frameStart;
   dTimer->frameStart = SDL_GetPerformanceCounter();
 
-  dTimer->delta = ((dTimer->frameStart - dTimer->frameEnd) * 1000) / (double)SDL_GetPerformanceFrequency();
-  dTimer->deltaInSecs = dTimer->delta / 1000;
+  dTimer->delta = (dTimer->frameStart - dTimer->frameEnd) / (double)SDL_GetPerformanceFrequency();
 }
 
 /* Bullet Definitions */
@@ -1489,6 +1487,7 @@ bool init(void)
           }
           else
           {
+            SDL_SetRenderVSync(gRenderer, 1);
             SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
             gTextEngine = TTF_CreateRendererTextEngine(gRenderer);
             if (gTextEngine == NULL)
@@ -1887,10 +1886,10 @@ int main(int argc, char *args[])
         deltaCalc(&dTimer);
         timerCalcTicks(&gameTimer);
 
-        playerMovementHandler(&player, dTimer.deltaInSecs);
-        playerBulletHander(&player, dTimer.deltaInSecs);
+        playerMovementHandler(&player, dTimer.delta);
+        playerBulletHander(&player, dTimer.delta);
         playerPowerUpHandler(&player, &powerUps);
-        asteroidHandler(&asteroids, &powerUps, &player, &astSpawnTimer, dTimer.deltaInSecs);
+        asteroidHandler(&asteroids, &powerUps, &player, &astSpawnTimer, dTimer.delta);
 
         if (gameState != GAME)
         {
