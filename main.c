@@ -33,7 +33,6 @@ enum Power { /* Possible PowerUps */
   SHIELD = 0,
   ARMOR = 1,
   INFFUEL = 2,
-  INFBULL = 3
 };
 
 enum Size {
@@ -43,7 +42,6 @@ enum Size {
 };
 
 enum State gameState = MENU;
-
 
 SDL_Window *gWindow = NULL;
 SDL_Renderer *gRenderer = NULL;
@@ -163,8 +161,8 @@ typedef struct Bullet
 
   float speed; /* 1000 */
 
-  float velX; /* Player.maxVelX */
-  float velY; /* Player.maxVelY */
+  float velX;
+  float velY;
 
   SDL_FRect rect;
   uint32 bulletNum;
@@ -275,33 +273,15 @@ typedef struct Player
   float posY;
   float rot;
 
-  float maxMoveSpeed; /* 17.5, 30 when afterburning */
-  float minMoveSpeed; /* 0.1 */
-  float currentMoveSpeed;
+  float moveSpeed;
 
-  float maxRotSpeed; /* 0.15 */
-  float minRotSpeed; /* 0.01 */
-  float currentRotSpeed;
+  float rotSpeed;
 
   _Bool moving;
-  _Bool braking;
   _Bool afterburning;
   float velX;
   float velY;
   float rotVel;
-
-  float moveSpeedMulti; /* 0.09 */   /* Speed added/multiplied when moving */
-  float moveSpeedDecay; /* 0.9995, 0.999 when braking */   /* Speed decay when not moving */
-
-  float rotVelMulti; /* 0.05 */ /* rotVelocity added/multiplied when rotating */
-  float rotVelDecay; /* 0.999, 0.995 when braking */ /* rotVelocity decay when not rotating */
-
-  float moveVelMulti;  /* 0.09 */ /* Velocity added/multiplied when moving */
-  float moveVelDecay;  /* 0.9995, 0.999 when braking */ /* Velocity decay when not moving */
-
-  float minVel; /* 0.01 - Used by both velX and velY*/
-  float maxVelX; /* sin of rot */
-  float maxVelY; /* cos of rot */
 
   float maxAfterBurnerFuel; /* 100 */
   float afterBurnerRefuelRate; /* 5 */
@@ -329,13 +309,10 @@ typedef struct Player
 
   bool shield;
   bool repair;
-  bool infBulls;
   bool infFuel;
 
   Timer shieldTimer;
   uint32 shieldTime;
-  Timer infBullsTimer;
-  uint32 infBullsTime;
   Timer infFuelTimer;
   uint32 infFuelTime;
 
@@ -353,33 +330,15 @@ void playerInit(Player *player)
   player->posY = 10;
   player->rot = 90;
 
-  player->maxMoveSpeed = 17.5;
-  player->minMoveSpeed = 0.1;
-  player->maxRotSpeed = 0.1;
-  player->minRotSpeed = 0.01;
+  player->moveSpeed = 300;
+  player->rotSpeed = 300;
 
-  player->currentMoveSpeed = 0;
-  player->currentRotSpeed = 0;
   player->rotVel = 0;
   player->moving = false;
-  player->braking = false;
   player->afterburning = false;
 
-  player->moveSpeedMulti = 0.009;
-  player->moveSpeedDecay = 0.9995;
-
-  player->moveVelMulti = 0.009;
-  player->moveVelDecay = 0.9995;
-
-  player->rotVelMulti = 0.005;
-  player->rotVelDecay = 0.999;
-
-  player->velX = 0;
-  player->velY = 0;
-
-  player->minVel = 0.1;
-  player->maxVelX = 0;
-  player->maxVelY = 0;
+  player->velX = SDL_sinf(player->rot * PI / 180);
+  player->velY = -SDL_cosf(player->rot * PI / 180);
 
   player->rect.w = player->width;
   player->rect.h = player->height;
@@ -417,9 +376,6 @@ void playerInit(Player *player)
   player->shieldTime = 5000;
   player->shieldTimer = timerInit();
   player->repair = false;
-  player->infBulls = false;
-  player->infBullsTime = 5000;
-  player->infBullsTimer = timerInit();
   player->infFuel = false;
   player->infFuelTime = 5000;
   player->infFuelTimer = timerInit();
@@ -431,15 +387,12 @@ void playerLogs(Player player)
   printf("posY: %f\n", player.posY);
   printf("rot: %f\n", player.rot);
   printf("rotVel: %f\n", player.rotVel);
-  printf("velX: %f\n", player.velX);
-  printf("maxVelX: %f\n", player.maxVelX);
-  printf("velY: %f\n", player.velY);
-  printf("currentMoveSpeed: %f\n", player.currentMoveSpeed);
-  printf("currentRotSpeed: %f\n", player.currentRotSpeed);
   printf("moving: %i\n", player.moving);
+  printf("velX: %f\n", player.velX);
+  printf("velY: %f\n", player.velY);
 }
 
-void playerShoot(Player *player)
+void playerShoot(Player *player, int num)
 {
   Bullet bullet; /* Creating A Bullet*/
 
@@ -450,8 +403,18 @@ void playerShoot(Player *player)
   bullet.damage = 1;
   bullet.speed = 1000;
 
-  bullet.velX = player->maxVelX;
-  bullet.velY = player->maxVelY;
+  if (num == 1)
+  {
+    bullet.velX = SDL_sinf((player->rot + 10) * PI / 180);
+    bullet.velY = -SDL_cosf((player->rot + 10) * PI / 180);
+  }
+  else
+  {
+    bullet.velX = SDL_sinf((player->rot - 10) * PI / 180);
+    bullet.velY = -SDL_cosf((player->rot - 10) * PI / 180);
+  }
+  
+  
 
   bullet.posX = player->posX + player->width/2 - bullet.width/2; /* Center of X */
   bullet.posY = player->posY + player->height/2 - bullet.height/2; /* Center of Y */
@@ -462,7 +425,7 @@ void playerShoot(Player *player)
   bullet.rect.y = bullet.posY;
 
   bullet.lifeTimer = timerInit();
-  bullet.lifeTime = 3000; /* 3 secs */
+  bullet.lifeTime = 1500; /* 1.5 secs */
   timerStart(&bullet.lifeTimer);
 
   /* Linked List For Optimised Allocation */
@@ -496,7 +459,8 @@ void playerBulletHander(Player *player, double delta)
 {
   if (player->shooting && player->bulletTimer.ticks > player->shootDelay)
   {
-    playerShoot(player);
+    playerShoot(player, 1);
+    playerShoot(player, 2);
     timerReset(&player->bulletTimer);
   }
   
@@ -553,10 +517,6 @@ void playerEventHandler(SDL_Event e, Player *player)
         player->moving = true;
         break;
 
-      case SDLK_S:
-        player->braking = true;
-        break;
-
       case SDLK_A:
         player->rotVel -= 1;
         break;
@@ -571,9 +531,7 @@ void playerEventHandler(SDL_Event e, Player *player)
 
       case SDLK_J:
         if (player->afterBurnerFuel > 0 && !player->afterBurnerOverheat)
-        {
           player->afterburning = true;
-        }
         break;
 
       case SDLK_K:
@@ -581,10 +539,10 @@ void playerEventHandler(SDL_Event e, Player *player)
         break;
 
       case SDLK_L:
-        if (!player->afterBurnerOverheat && player->afterBurnerFuel >= player->maxAfterBurnerFuel && !player->infFuelTimer.started);
+        if ((!player->afterBurnerOverheat && player->afterBurnerFuel > 0) || player->infFuelTimer.started)
         {
-          player->posX += player->maxVelX * player->leapDistance;
-          player->posY += player->maxVelY * player->leapDistance;
+          player->posX += player->velX * player->leapDistance;
+          player->posY += player->velY * player->leapDistance;
           player->afterBurnerOverheat = true;
           player->afterBurnerFuel = 0;
         }
@@ -604,10 +562,6 @@ void playerEventHandler(SDL_Event e, Player *player)
     {
     case SDLK_W:
       player->moving = false;
-      break;
-
-    case SDLK_S:
-      player->braking = false;
       break;
 
     case SDLK_D:
@@ -632,319 +586,50 @@ void playerEventHandler(SDL_Event e, Player *player)
 
 void playerMovementHandler(Player *player, double delta)
 {
-  /* currentRotSpeed calculation */
+  /* Rotation */
   if (player->rotVel > 0) /* Holding Right */
-  {
-    if (player->currentRotSpeed != 0) /* Not At Rest */
-    {
-      if (player->currentRotSpeed + player->currentRotSpeed * player->rotVelMulti <= player->maxRotSpeed & player->currentRotSpeed > 0)
-      {
-        player->currentRotSpeed += player->currentRotSpeed * player->rotVelMulti; /* Adding rotSpeed */
-      }
-      else if (player->currentRotSpeed < 0)
-      {
-        player->currentRotSpeed -= player->currentRotSpeed * player->rotVelMulti; /* Subtracting rotSpeed */
-      }
-      else if (player->currentRotSpeed + player->currentRotSpeed * player->rotVelMulti >= player->maxRotSpeed)
-      {
-        player->currentRotSpeed = player->maxRotSpeed; /* Limiting To maxRotSpeed */
-      }
-
-      if (player->currentRotSpeed < player->minRotSpeed & player->currentRotSpeed > -player->minRotSpeed)
-      {
-        player->currentRotSpeed = 0; /* If small enough, make it 0 */
-      }
-
-    }
-    else
-    {
-      player->currentRotSpeed = player->minRotSpeed; /* At Rest */
-    }
-  }
+    player->rot += player->rotSpeed * delta;
   else if (player->rotVel < 0) /* Holding Left */
+    player->rot -= player->rotSpeed * delta;
+  if (player->rotVel != 0) /* Calculating velX and velY after rotating */
   {
-    if (player->currentRotSpeed != 0) /* Not At Rest */
-    {
-      if (player->currentRotSpeed - player->currentRotSpeed * player->rotVelMulti >= -(player->maxRotSpeed) & player->currentRotSpeed < 0)
-      {
-        player->currentRotSpeed += player->currentRotSpeed * player->rotVelMulti;
-      }
-      else if (player->currentRotSpeed - player->currentRotSpeed * player->rotVelMulti <= -(player->maxRotSpeed))
-      {
-        player->currentRotSpeed = -(player->maxRotSpeed);
-      }
-      else if (player->currentRotSpeed > 0)
-      {
-        player->currentRotSpeed -= player->currentRotSpeed * player->rotVelMulti;
-      }
-
-      if (player->currentRotSpeed < player->minRotSpeed & player->currentRotSpeed > -player->minRotSpeed)
-      {
-        player->currentRotSpeed = 0; /* If small enough, make it 0 */
-      }
-    }
-    else
-    {
-      player->currentRotSpeed = -player->minRotSpeed; /* At rest */
-    }
-  }
-  else if (player->rotVel == 0 && player->currentRotSpeed != 0) /* Totally At Rest */
-  {
-    player->currentRotSpeed *= player->rotVelDecay; /* Reduce rotVel */
-
-    if (player->currentRotSpeed < player->minRotSpeed & player->currentRotSpeed > -player->minRotSpeed)
-    {
-      player->currentRotSpeed = 0; /* If small enough, make it 0 (works better than i expected lol)*/
-    }
+    /* Calculating velX and velY, also force on both Axes through trigonometry */
+    player->velX = SDL_sinf(player->rot * PI / 180); /* rot * PI / 180 to convert to radians */
+    player->velY = -SDL_cosf(player->rot * PI / 180); /* Due to Y coordinates of SDL, a minus is required */
   }
 
-  /* Rotating the ship */
-  if (player->rot + player->currentRotSpeed >= 360) /* Cycle from 360 to 0 */
-  {
-    player->rot = player->rot + player->currentRotSpeed - 360;
-  }
-  else
-  {
-    player->rot += player->currentRotSpeed * ( delta * 1000 ); /* delta * 1000 -> Normalization */
-  }
-
-  if (player->rot + player->currentRotSpeed <= 0) /* Cycle from 0 to 360 */
-  {
-    player->rot = 360 + player->rot + player->currentRotSpeed;
-  }
-  else
-  {
-    player->rot += player->currentRotSpeed * ( delta * 1000 );
-  }
-
-  
-
-  /* Calculating currentMoveSpeed */
-  if (player->moving)
-  {
-    if (player->currentMoveSpeed != 0)
-    {
-      if (player->currentMoveSpeed + player->currentMoveSpeed * player->moveSpeedMulti < player->maxMoveSpeed)
-      {
-        player->currentMoveSpeed += player->currentMoveSpeed * player->moveSpeedMulti;
-      }
-      else if (player->currentMoveSpeed + player->currentMoveSpeed * player->moveSpeedMulti >= player->maxMoveSpeed)
-      {
-        player->currentMoveSpeed = player->maxMoveSpeed;
-      }
-    }
-    else
-    {
-      player->currentMoveSpeed = player->minMoveSpeed;
-    }
-  }
-  else
-  {
-    if (player->currentMoveSpeed >= player->minMoveSpeed)
-    {
-      player->currentMoveSpeed *= player->moveSpeedDecay;
-    }
-    else
-    {
-      player->currentMoveSpeed = 0;
-    }
-  }
-
-  /* Calculating max of velX and velY, also force on both Axes through trigonometry */
-  player->maxVelX = SDL_sinf(player->rot * PI / 180); /* rot * PI / 180 to convert to radians */
-  player->maxVelY = -SDL_cosf(player->rot * PI / 180); /* Due to Y coordinates of SDL, a minus is required */
-
-  /* This entire structure is from the rotVel update section. Refer there if you have doubts */
-  if (player->moving) /* Update velX and velY only when moving */
-  {
-    if (player->maxVelX > 0) /* if maxVelX is +ve */
-    {
-      if (player->velX != 0)
-      {
-        if (player->velX + player->velX * player->moveVelMulti <= player->maxVelX & player->velX > 0)
-        {
-          player->velX += player->velX * player->moveVelMulti;
-        }
-        else if (player->velX + player->velX * player->moveVelMulti > player->maxVelX)
-        {
-          player->velX = player->maxVelX;
-        }
-        else if (player->velX < 0)
-        {
-          player->velX -= player->velX * player->moveVelMulti;
-        }
-        if (player->velX < player->minVel & player->velX > -player->minVel)
-        {
-          player->velX = 0;
-        }
-      }
-      else
-      {
-        player->velX = player->minVel;
-      }
-    }
-    else if (player->maxVelX < 0) /* if maxVelX is -ve */
-    {
-      if (player->velX != 0)
-      {
-        if (player->velX + player->velX * player->moveVelMulti >= player->maxVelX & player->velX < 0)
-        {
-          player->velX += player->velX * player->moveVelMulti;
-        }
-        else if (player->velX + player->velX * player->moveVelMulti < player->maxVelX)
-        {
-          player->velX = player->maxVelX;
-        }
-        else if (player->velX > 0)
-        {
-          player->velX -= player->velX * player->moveVelMulti;
-        }
-        if (player->velX < player->minVel & player->velX > -player->minVel)
-        {
-          player->velX = 0;
-        } 
-      }
-      else
-      {
-        player->velX = -player->minVel;
-      }
-    }
-
-    if (player->maxVelY > 0) /* if maxVelY is +ve */
-    {
-      if (player->velY != 0)
-      {
-        if (player->velY + player->velY * player->moveVelMulti <= player->maxVelY & player->velY > 0)
-        {
-          player->velY += player->velY * player->moveVelMulti;
-        }
-        else if (player->velY + player->velY * player->moveVelMulti > player->maxVelY)
-        {
-          player->velY = player->maxVelY;
-        }
-        else if (player->velY < 0)
-        {
-          player->velY -= player->velY * player->moveVelMulti;
-        }
-        if (player->velY < player->minVel & player->velY > -player->minVel)
-        {
-          player->velY = 0;
-        }
-      }
-      else
-      {
-        player->velY = player->minVel;
-      }
-    }
-    else if (player->maxVelY < 0) /* if maxVelY is -ve */
-    {
-      if (player->velY != 0)
-      {
-        if (player->velY + player->velY * player->moveVelMulti >= player->maxVelY & player->velY < 0)
-        {
-          player->velY += player->velY * player->moveVelMulti;
-        }
-        else if (player->velY + player->velY * player->moveVelMulti < player->maxVelY)
-        {
-          player->velY = player->maxVelY;
-        }
-        else if (player->velY > 0)
-        {
-          player->velY -= player->velY * player->moveVelMulti;
-        }
-        if (player->velY < player->minVel & player->velY > -player->minVel)
-        {
-          player->velY = 0;
-        } 
-      }
-      else
-      {
-        player->velY = -player->minVel;
-      }
-    }
-
-    
-  }
-  else
-  {
-    if (player->velX != 0)
-    {
-      player->velX *= player->moveVelDecay;
-    }
-    if (player->velX > -delta & player->velX < delta)
-    {
-      player->velX = 0;
-    }
-    
-
-    if (player->velY != 0)
-    {
-      player->velY *= player->moveVelDecay;
-    }
-    if (player->velY > -delta & player->velY < delta)
-    {
-      player->velY = 0;
-    }
-  }
-  
-  if (player->braking) /* Brakes */
-  {
-    player->moveSpeedDecay = 0.999;
-    player->moveVelDecay = 0.999;
-    player->rotVelDecay = 0.995;
-  }
-  else
-  {
-    player->moveSpeedDecay = 0.9995;
-    player->moveVelDecay = 0.9995;
-    player->rotVelDecay = 0.999;
-  }
-
-  if (player->afterburning) /* Afterburner */
-  {
-    player->maxMoveSpeed = 30;
-  }
-  else
-  {
-    player->maxMoveSpeed = 17.5;
-  }
-  
   /* Screen Looping */
   /* X-Axis */
   if (player->posX > WIDTH) /* Right to left */
-  {
     player->posX = 0 - player->width;
-  }
   else if (player->posX + player->width < 0) /* Left to Right */
-  {
     player->posX = WIDTH;
-  }
 
   /* Y-Axis */
   if (player->posY > HEIGHT) /* Down to Up */
-  {
     player->posY = 0 - player->height;
-  }
   else if (player->posY + player->height < 0) /* Up to Down */
-  {
     player->posY = HEIGHT;
+
+  if (player->moving)
+  {
+    if (player->afterburning) /* Afterburner */
+    player->moveSpeed = 400;
+  else
+    player->moveSpeed = 300;
+
+    player->posX += player->moveSpeed * delta * player->velX;
+    player->posY += player->moveSpeed * delta * player->velY;
+
+    player->rect.x = player->posX;
+    player->rect.y = player->posY;
   }
-
-  player->posX += player->currentMoveSpeed * (delta * 10) * player->velX;
-  player->posY += player->currentMoveSpeed * (delta * 10) * player->velY;
-
-  player->rect.x = player->posX;
-  player->rect.y = player->posY;
 
   /* Afterburner */
   if (!player->afterburning && player->afterBurnerFuel < player->maxAfterBurnerFuel)
-  {
     player->afterBurnerFuel += player->afterBurnerRefuelRate;
-  }
   else if (player->afterburning && player->afterBurnerFuel > 0 && !player->infFuelTimer.started)
-  {
     player->afterBurnerFuel -= player->afterBurnerDepletionRate;
-  }
   else if (player->afterBurnerFuel <= 0)
   {
     player->afterBurnerOverheat = true;
@@ -952,9 +637,7 @@ void playerMovementHandler(Player *player, double delta)
   }
   
   if (player->afterBurnerOverheat && player->afterBurnerFuel >= player->maxAfterBurnerFuel)
-  {
     player->afterBurnerOverheat = false;
-  }
 }
 
 void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
@@ -971,10 +654,6 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
       else if (powerPtr->power.powerUp == ARMOR)
       {
         player->repair = true;
-      }
-      else if (powerPtr->power.powerUp == INFBULL)
-      {
-        player->infBulls = true;
       }
       else if (powerPtr->power.powerUp == INFFUEL)
       {
@@ -1004,16 +683,6 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
     player->repair = false;
   }
 
-  if (player->infBulls)
-  {
-    timerStart(&player->infBullsTimer);
-    player->infBulls = false;
-  }
-  if (player->infBullsTimer.started && player->infBullsTimer.ticks > player->infBullsTime)
-  {
-    timerStop(&player->infBullsTimer);
-  }
-
   if (player->infFuel) 
   {
     timerStart(&player->infFuelTimer);
@@ -1025,7 +694,6 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
   }
 
   timerCalcTicks(&player->shieldTimer);
-  timerCalcTicks(&player->infBullsTimer);
   timerCalcTicks(&player->infFuelTimer);
 }
 
@@ -1053,18 +721,12 @@ void playerRender(Player player)
 
   /* PowerUps */
   SDL_FRect ShieldRect = {20, 20, 10, 10};
-  SDL_FRect InfBulletsRect = {40, 20, 10, 10};
   SDL_FRect InfFuelRect = {60, 20, 10, 10};
 
   if (player.shieldTimer.started)
   {
     SDL_SetRenderDrawColor(gRenderer, 0, 0, 255, 255);
     SDL_RenderFillRect(gRenderer, &ShieldRect);
-  }
-  if (player.infBullsTimer.started)
-  {
-    SDL_SetRenderDrawColor(gRenderer, 255, 255, 0, 255);
-    SDL_RenderFillRect(gRenderer, &InfBulletsRect);
   }
   if (player.infFuelTimer.started)
   {
@@ -1082,8 +744,7 @@ void playerDestroy(Player *player)
   player->width = 0;
   player->height = 0;
 
-  player->minMoveSpeed = 0;
-  player->maxMoveSpeed = 0;
+  player->moveSpeed = 0;
 
   player->moving = false;
 }
@@ -1324,8 +985,8 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
     {
       if (SDL_HasRectIntersectionFloat(&astPtr->asteroid.rect, &bullPtr->bullet.rect))
       {
-        int powerChance = SDL_rand(50);
-        if (powerChance == 25)
+        int powerChance = SDL_rand(20);
+        if (powerChance == 10)
         {
           powerUpSpawn(&astPtr->asteroid, powerUps);
         }
@@ -1355,7 +1016,7 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
   }
 
   /* Asteroid Spawner */
-  if (spawnTimer->ticks > SDL_rand(1000) + 4000)
+  if (spawnTimer->ticks > SDL_rand(3000) + 2000)
   {
     asteroidSpawn(asteroids, NULL); 
     timerReset(spawnTimer); /* Reset Timer */
@@ -1595,10 +1256,6 @@ void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button
       {
         SDL_SetRenderDrawColor(gRenderer, 255, 0, 0, 255);
       }
-      else if (powerPtr->power.powerUp == INFBULL)
-      {
-        SDL_SetRenderDrawColor(gRenderer, 0, 255, 255, 255);
-      }
       else if (powerPtr->power.powerUp == INFFUEL)
       {
         SDL_SetRenderDrawColor(gRenderer, 255, 0, 255, 255);
@@ -1811,7 +1468,7 @@ int main(int argc, char *args[])
           resumeButton.width = 200;
           resumeButton.height = 50;
           resumeButton.posX = (WIDTH - resumeButton.width)/2;
-          resumeButton.posY = 1*HEIGHT/3 - resumeButton.height/2;
+          resumeButton.posY = 1*HEIGHT/3.f - resumeButton.height/2;
           resumeButton.rect.w = resumeButton.width;
           resumeButton.rect.h = resumeButton.height;
           resumeButton.rect.x = resumeButton.posX;
@@ -1823,7 +1480,7 @@ int main(int argc, char *args[])
           menuButton.width = 200;
           menuButton.height = 50;
           menuButton.posX = (WIDTH - menuButton.width)/2;
-          menuButton.posY = 2*HEIGHT/3 - menuButton.height/2;
+          menuButton.posY = 2*HEIGHT/3.f - menuButton.height/2;
           menuButton.rect.w = menuButton.width;
           menuButton.rect.h = menuButton.height;
           menuButton.rect.x = menuButton.posX;
@@ -1900,7 +1557,6 @@ int main(int argc, char *args[])
 
         frameEnd = SDL_GetPerformanceCounter();
         fps = (frameEnd - frameStart)/(float) SDL_GetPerformanceFrequency();
-        //printf("FPS: %f\n", 1/fps);
       }
     }
 
