@@ -9,7 +9,7 @@ CC = gcc
 COMPILER_FLAGS = -w
 
 #LINKER_FLAGS specifies the libraries we're linking against
-LINKER_FLAGS = -lSDL3 -lSDL3_image -lSDL3_mixer -lSDL3_ttf
+LINKER_FLAGS = -lSDL3 -lSDL3_image -lSDL3_mixer -lSDL3_ttf deps/cJSON.c
 
 #OBJ_NAME specifies the name of our exectuable
 OBJ_NAME = main

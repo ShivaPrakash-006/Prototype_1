@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include "deps/cJSON.h"
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
@@ -21,7 +22,8 @@
 #define WIDTH 1280
 #define HEIGHT 720
 
-enum State { /* Possible Game States */
+enum State
+{ /* Possible Game States */
   MENU = 0,
   GAME = 1,
   PAUSED = 2,
@@ -29,19 +31,21 @@ enum State { /* Possible Game States */
   SCORES = 4
 };
 
-enum Power { /* Possible PowerUps */
+enum Power
+{ /* Possible PowerUps */
   SHIELD = 0,
   ARMOR = 1,
   INFFUEL = 2,
 };
 
-enum Size {
+enum Size
+{
   SMALL = 0,
   NORMAL = 1,
   LARGE = 2
 };
 
-enum State gameState = GAME;
+enum State gameState = MENU;
 
 SDL_Window *gWindow = NULL;
 SDL_Renderer *gRenderer = NULL;
@@ -151,7 +155,7 @@ void deltaCalc(DeltaTimer *dTimer)
 /* Struct */
 typedef struct Bullet
 {
-  int width; /* 10 */
+  int width;  /* 10 */
   int height; /* 10 */
 
   float posX;
@@ -214,11 +218,12 @@ typedef struct PowerUp
   enum Power powerUp;
 } PowerUp;
 
-typedef struct PowerUpList {
+typedef struct PowerUpList
+{
 
   PowerUp power;
   struct PowerUpList *nextPowerUp;
-  
+
 } PowerUpList;
 
 /* Functions */
@@ -237,7 +242,7 @@ struct PowerUpList powerUpInit(void)
   powerUps.power.rect.y = powerUps.power.posY;
 
   powerUps.nextPowerUp = NULL;
-  
+
   return powerUps;
 }
 
@@ -283,8 +288,8 @@ typedef struct Player
   float velY;
   float rotVel;
 
-  float maxAfterBurnerFuel; /* 100 */
-  float afterBurnerRefuelRate; /* 5 */
+  float maxAfterBurnerFuel;       /* 100 */
+  float afterBurnerRefuelRate;    /* 5 */
   float afterBurnerDepletionRate; /* 10 */
   float afterBurnerFuel;
   _Bool afterBurnerOverheat;
@@ -418,11 +423,9 @@ void playerShoot(Player *player, int num)
     bullet.velX = SDL_sinf((player->rot - 10) * PI / 180);
     bullet.velY = -SDL_cosf((player->rot - 10) * PI / 180);
   }
-  
-  
 
-  bullet.posX = player->posX + player->width/2 - bullet.width/2; /* Center of X */
-  bullet.posY = player->posY + player->height/2 - bullet.height/2; /* Center of Y */
+  bullet.posX = player->posX + player->width / 2 - bullet.width / 2;   /* Center of X */
+  bullet.posY = player->posY + player->height / 2 - bullet.height / 2; /* Center of Y */
 
   bullet.rect.w = bullet.width;
   bullet.rect.h = bullet.height;
@@ -438,7 +441,7 @@ void playerShoot(Player *player, int num)
   uint bulletNum = 1;
   prevPtr = &player->bullets;
   bulletPtr = player->bullets.nextBullet;
-  newBullet = (BulletList*) malloc(sizeof(BulletList));
+  newBullet = (BulletList *)malloc(sizeof(BulletList));
 
   while (bulletPtr != NULL)
   {
@@ -453,7 +456,7 @@ void playerShoot(Player *player, int num)
       break;
     }
   }
-  
+
   newBullet->bullet = bullet;
   newBullet->bullet.bulletNum = bulletNum;
   newBullet->nextBullet = bulletPtr;
@@ -468,14 +471,14 @@ void playerBulletHander(Player *player, double delta)
     playerShoot(player, 2);
     timerReset(&player->bulletTimer);
   }
-  
+
   BulletList *bulletPtr = &player->bullets;
-  while(bulletPtr != NULL)
+  while (bulletPtr != NULL)
   {
     /* Moving the bullets */
     bulletPtr->bullet.posX += bulletPtr->bullet.velX * bulletPtr->bullet.speed * delta;
     bulletPtr->bullet.posY += bulletPtr->bullet.velY * bulletPtr->bullet.speed * delta;
-    
+
     bulletPtr->bullet.rect.x = bulletPtr->bullet.posX;
     bulletPtr->bullet.rect.y = bulletPtr->bullet.posY;
 
@@ -499,7 +502,7 @@ void playerBulletHander(Player *player, double delta)
     {
       bulletPtr->bullet.posY = 0 - bulletPtr->bullet.height; /* Bottom to Top */
     }
-    
+
     timerCalcTicks(&bulletPtr->bullet.lifeTimer);
     if (bulletPtr->bullet.lifeTimer.ticks > bulletPtr->bullet.lifeTime)
     {
@@ -518,47 +521,47 @@ void playerEventHandler(SDL_Event e, Player *player)
   {
     switch (e.key.key)
     {
-      case SDLK_W:
-        player->moving = true;
-        break;
+    case SDLK_W:
+      player->moving = true;
+      break;
 
-      case SDLK_A:
-        player->rotVel -= 1;
-        break;
+    case SDLK_A:
+      player->rotVel -= 1;
+      break;
 
-      case SDLK_D:
-        player->rotVel += 1;
-        break;
+    case SDLK_D:
+      player->rotVel += 1;
+      break;
 
-      case SDLK_F1:
-        playerLogs(*player);
-        break;
+    case SDLK_F1:
+      playerLogs(*player);
+      break;
 
-      case SDLK_J:
-        if (player->afterBurnerFuel > 0 && !player->afterBurnerOverheat)
-          player->afterburning = true;
-        break;
+    case SDLK_J:
+      if (player->afterBurnerFuel > 0 && !player->afterBurnerOverheat)
+        player->afterburning = true;
+      break;
 
-      case SDLK_K:
-        player->shooting = true;
-        break;
+    case SDLK_K:
+      player->shooting = true;
+      break;
 
-      case SDLK_L:
-        if ((!player->afterBurnerOverheat && player->afterBurnerFuel > 0) || player->infFuelTimer.started)
-        {
-          player->posX += player->velX * player->leapDistance;
-          player->posY += player->velY * player->leapDistance;
-          player->afterBurnerOverheat = true;
-          player->afterBurnerFuel = 0;
-        }
-        break;
+    case SDLK_L:
+      if ((!player->afterBurnerOverheat && player->afterBurnerFuel > 0) || player->infFuelTimer.started)
+      {
+        player->posX += player->velX * player->leapDistance;
+        player->posY += player->velY * player->leapDistance;
+        player->afterBurnerOverheat = true;
+        player->afterBurnerFuel = 0;
+      }
+      break;
 
-      case SDLK_ESCAPE:
-        gameState = PAUSED;
-        break;
+    case SDLK_ESCAPE:
+      gameState = PAUSED;
+      break;
 
-      default:
-        break;
+    default:
+      break;
     }
   }
   else if (e.type == SDL_EVENT_KEY_UP & e.key.repeat == 0)
@@ -579,7 +582,7 @@ void playerEventHandler(SDL_Event e, Player *player)
 
     case SDLK_J:
       player->afterburning = false;
-    
+
     case SDLK_K:
       player->shooting = false;
 
@@ -599,7 +602,7 @@ void playerMovementHandler(Player *player, double delta)
   if (player->rotVel != 0) /* Calculating velX and velY after rotating */
   {
     /* Calculating velX and velY, also force on both Axes through trigonometry */
-    player->velX = SDL_sinf(player->rot * PI / 180); /* rot * PI / 180 to convert to radians */
+    player->velX = SDL_sinf(player->rot * PI / 180);  /* rot * PI / 180 to convert to radians */
     player->velY = -SDL_cosf(player->rot * PI / 180); /* Due to Y coordinates of SDL, a minus is required */
   }
 
@@ -619,9 +622,9 @@ void playerMovementHandler(Player *player, double delta)
   if (player->moving)
   {
     if (player->afterburning) /* Afterburner */
-    player->moveSpeed = 400;
-  else
-    player->moveSpeed = 300;
+      player->moveSpeed = 400;
+    else
+      player->moveSpeed = 300;
 
     player->posX += player->moveSpeed * delta * player->velX;
     player->posY += player->moveSpeed * delta * player->velY;
@@ -640,7 +643,7 @@ void playerMovementHandler(Player *player, double delta)
     player->afterBurnerOverheat = true;
     player->afterburning = false;
   }
-  
+
   if (player->afterBurnerOverheat && player->afterBurnerFuel >= player->maxAfterBurnerFuel)
     player->afterBurnerOverheat = false;
 }
@@ -664,15 +667,13 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
       {
         player->infFuel = true;
       }
-      
+
       powerUpDestroy(&powerPtr->power, powerUps);
     }
     powerPtr = powerPtr->nextPowerUp;
   }
-  
 
-
-  if (player->shield) 
+  if (player->shield)
   {
     timerStart(&player->shieldTimer);
     player->shield = false;
@@ -688,14 +689,14 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
     player->repair = false;
   }
 
-  if (player->infFuel) 
+  if (player->infFuel)
   {
     timerStart(&player->infFuelTimer);
     player->infFuel = false;
   }
-  if (player->infFuelTimer.started && player->infFuelTimer.ticks > player->infFuelTime) 
+  if (player->infFuelTimer.started && player->infFuelTimer.ticks > player->infFuelTime)
   {
-    timerStop(&player->infFuelTimer); 
+    timerStop(&player->infFuelTimer);
   }
 
   timerCalcTicks(&player->shieldTimer);
@@ -705,7 +706,7 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
 void playerTextHandler(Player *player)
 {
   /* Score */
-  char *score; /* Number of characters in "Score: 999" */
+  char *score;                                      /* Number of characters in "Score: 999" */
   SDL_asprintf(&score, "Score: %u", player->score); /* To join string with int */
   player->scoreText = TTF_CreateText(gTextEngine, jetBrainsMono, score, 0);
 }
@@ -738,7 +739,6 @@ void playerRender(Player player)
     SDL_SetRenderDrawColor(gRenderer, 255, 0, 255, 255);
     SDL_RenderFillRect(gRenderer, &InfFuelRect);
   }
-  
 }
 
 void playerDestroy(Player *player)
@@ -760,9 +760,9 @@ typedef struct Asteroid
 {
   enum Size size;
 
-  short width; /* 20 */
+  short width;  /* 20 */
   short height; /* 20 */
-  
+
   float posX;
   float posY;
 
@@ -790,18 +790,18 @@ void powerUpSpawn(Asteroid *asteroid, PowerUpList *powerUps)
   PowerUp power;
   power.width = 16;
   power.height = 16;
-  power.posX = asteroid->posX + asteroid->width/2;
-  power.posY = asteroid->posY + asteroid->height/2;
+  power.posX = asteroid->posX + asteroid->width / 2;
+  power.posY = asteroid->posY + asteroid->height / 2;
   power.rect.w = power.width;
   power.rect.h = power.height;
   power.rect.x = power.posX;
   power.rect.y = power.posY;
-  power.powerUp = (enum Power) SDL_rand(4);
+  power.powerUp = (enum Power)SDL_rand(4);
 
   PowerUpList *powerPtr, *prevPtr, *newPower;
   powerPtr = powerUps->nextPowerUp;
   prevPtr = powerUps;
-  newPower = (PowerUpList*) malloc(sizeof(PowerUpList));
+  newPower = (PowerUpList *)malloc(sizeof(PowerUpList));
   uint32 powerNum = 1;
 
   while (powerPtr != NULL)
@@ -843,10 +843,10 @@ AsteroidList asteroidInit(void)
 void asteroidSpawn(AsteroidList *asteroids, Asteroid *refAsteroid)
 {
   Asteroid asteroid; /* SDL_rand(Number Of Outcomes) + lowerValue -> lowerValue to NumberOfOutcome - 1*/
-  
+
   if (refAsteroid == NULL) /* Normal Spawn */
   {
-    asteroid.size = (enum Size) SDL_rand(3);
+    asteroid.size = (enum Size)SDL_rand(3);
   }
   else /* Spawn Based On Destroyed Asteroid */
   {
@@ -877,37 +877,41 @@ void asteroidSpawn(AsteroidList *asteroids, Asteroid *refAsteroid)
   case 0: /* Up */
     asteroid.posX = SDL_rand(WIDTH);
     asteroid.posY = 0 - asteroid.height;
-    
-    asteroid.velX = (SDL_rand(20) - 10)/(float) 10; /* -1.0 -> 0.9 */
-    if (asteroid.velX >= 0) asteroid.velX += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
-    asteroid.velY = (SDL_rand(10) + 1)/(float) 10; /* 0.1 -> 1.0 */
+
+    asteroid.velX = (SDL_rand(20) - 10) / (float)10; /* -1.0 -> 0.9 */
+    if (asteroid.velX >= 0)
+      asteroid.velX += 0.1;                         /* -1.0 -> -0.1 U 0.1 -> 1.0 */
+    asteroid.velY = (SDL_rand(10) + 1) / (float)10; /* 0.1 -> 1.0 */
     break;
-  
+
   case 1: /* Right */
     asteroid.posX = WIDTH;
     asteroid.posY = SDL_rand(HEIGHT);
 
-    asteroid.velX = (SDL_rand(10) - 10)/(float) 10; /* -1.0 -> -0.1 */
-    asteroid.velY = (SDL_rand(20) - 10)/(float) 10; /* -1.0 -> 0.9 */
-    if (asteroid.velY >= 0) asteroid.velY += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
+    asteroid.velX = (SDL_rand(10) - 10) / (float)10; /* -1.0 -> -0.1 */
+    asteroid.velY = (SDL_rand(20) - 10) / (float)10; /* -1.0 -> 0.9 */
+    if (asteroid.velY >= 0)
+      asteroid.velY += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
     break;
 
   case 2: /* Bottom */
     asteroid.posX = SDL_rand(WIDTH);
     asteroid.posY = HEIGHT;
 
-    asteroid.velX = (SDL_rand(20) - 10)/(float) 10; /* -1.0 -> 0.9 */
-    if (asteroid.velX >= 0) asteroid.velX += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
-    asteroid.velY = (SDL_rand(10) - 10)/(float) 10; /* -1.0 -> -0.1 */
+    asteroid.velX = (SDL_rand(20) - 10) / (float)10; /* -1.0 -> 0.9 */
+    if (asteroid.velX >= 0)
+      asteroid.velX += 0.1;                          /* -1.0 -> -0.1 U 0.1 -> 1.0 */
+    asteroid.velY = (SDL_rand(10) - 10) / (float)10; /* -1.0 -> -0.1 */
     break;
-  
+
   case 3: /* Left */
     asteroid.posX = 0 - asteroid.width;
     asteroid.posY = SDL_rand(HEIGHT);
 
-    asteroid.velX = (SDL_rand(20) + 1)/(float) 10; /* 0.1 -> 1.0 */
-    asteroid.velY = (SDL_rand(20) - 10)/(float) 10; /* -1.0 -> 0.9 */
-    if (asteroid.velY >= 0) asteroid.velY += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
+    asteroid.velX = (SDL_rand(20) + 1) / (float)10;  /* 0.1 -> 1.0 */
+    asteroid.velY = (SDL_rand(20) - 10) / (float)10; /* -1.0 -> 0.9 */
+    if (asteroid.velY >= 0)
+      asteroid.velY += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
     break;
 
   default:
@@ -919,7 +923,7 @@ void asteroidSpawn(AsteroidList *asteroids, Asteroid *refAsteroid)
     asteroid.posX = refAsteroid->posX + SDL_rand(refAsteroid->width);
     asteroid.posY = refAsteroid->posY + SDL_rand(refAsteroid->height);
   }
-  
+
   asteroid.rect.x = asteroid.posX;
   asteroid.rect.y = asteroid.posY;
   asteroid.rect.w = asteroid.width;
@@ -928,7 +932,7 @@ void asteroidSpawn(AsteroidList *asteroids, Asteroid *refAsteroid)
   AsteroidList *astPtr, *prevPtr, *newAst;
   astPtr = asteroids->nextAsteroid;
   prevPtr = asteroids;
-  newAst = (AsteroidList*) malloc(sizeof(AsteroidList));
+  newAst = (AsteroidList *)malloc(sizeof(AsteroidList));
   uint astNum = 1;
 
   while (astPtr != NULL)
@@ -982,7 +986,7 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
 {
   /* Asteroids - Bullet Collision Detector & Destroyer */
   AsteroidList *astPtr = asteroids->nextAsteroid;
-  while(astPtr != NULL)
+  while (astPtr != NULL)
   {
     bool destroyed = false;
     BulletList *bullPtr = player->bullets.nextBullet;
@@ -995,7 +999,7 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
         {
           powerUpSpawn(&astPtr->asteroid, powerUps);
         }
-        
+
         asteroidDestroy(&astPtr->asteroid, asteroids); /* Destroy Objects */
         bulletDestroy(&bullPtr->bullet, &player->bullets);
         destroyed = true;
@@ -1023,7 +1027,7 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
   /* Asteroid Spawner */
   if (spawnTimer->ticks > SDL_rand(3000) + 2000)
   {
-    asteroidSpawn(asteroids, NULL); 
+    asteroidSpawn(asteroids, NULL);
     timerReset(spawnTimer); /* Reset Timer */
   }
 
@@ -1054,7 +1058,7 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
     {
       astPtr->asteroid.posY = 0 - astPtr->asteroid.height; /* Bottom to Top */
     }
-    
+
     astPtr->asteroid.rect.x = astPtr->asteroid.posX;
     astPtr->asteroid.rect.y = astPtr->asteroid.posY;
 
@@ -1064,7 +1068,6 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
   timerCalcTicks(spawnTimer);
 }
 
-
 /* Buttons */
 /* Structure */
 typedef struct Button
@@ -1072,7 +1075,7 @@ typedef struct Button
   float width;
   float height;
   float posX;
-  float posY; 
+  float posY;
 
   bool hovered;
   bool clicked;
@@ -1086,10 +1089,10 @@ bool buttonStateUpdater(Button *button)
 {
   float mouseX;
   float mouseY;
-  SDL_MouseButtonFlags mouseState = SDL_GetMouseState(&mouseX, &mouseY); //Getting The State of the mouse
+  SDL_MouseButtonFlags mouseState = SDL_GetMouseState(&mouseX, &mouseY); // Getting The State of the mouse
 
-  if (mouseX > button->posX && mouseX < button->posX + button->width && //Checking X Collision
-      mouseY > button->posY && mouseY < button->posY + button->height ) //Checking Y Collision
+  if (mouseX > button->posX && mouseX < button->posX + button->width && // Checking X Collision
+      mouseY > button->posY && mouseY < button->posY + button->height)  // Checking Y Collision
   {
     button->hovered = true;
     if (mouseState == SDL_BUTTON_LMASK)
@@ -1100,7 +1103,6 @@ bool buttonStateUpdater(Button *button)
     {
       button->clicked = false;
     }
-    
   }
   else
   {
@@ -1109,11 +1111,71 @@ bool buttonStateUpdater(Button *button)
   }
 }
 
+char* extractScores(char *fileName)
+{
+  FILE *scoreJson = fopen(fileName, "r");
+  if (scoreJson == NULL)
+  {
+    printf("Unable to open '%s'.", fileName);
+    return NULL;
+  }
+
+  fseek(scoreJson, 0, SEEK_END);
+  int length = ftell(scoreJson);
+  rewind(scoreJson);
+
+  char *jsonData = (char*) malloc(length + 1);
+  fread(jsonData, 1, length, scoreJson);
+  jsonData[length] = '\0';
+
+  return jsonData;
+}
+
+char* updateScores(char *jsonData, char *username, int score, int time)
+{
+  cJSON *root = jsonData[0] != '\0' ? cJSON_Parse(jsonData) : cJSON_CreateObject();
+
+  cJSON *userScores = cJSON_GetObjectItem(root, username);
+  if (userScores == NULL)
+  {
+    userScores = cJSON_CreateArray();
+    cJSON_AddItemToObject(root, username, userScores);
+  }
+
+  cJSON *scoreObj = cJSON_CreateObject();
+  cJSON_AddNumberToObject(scoreObj, "Score", score);
+  cJSON_AddNumberToObject(scoreObj, "Time", time);
+  cJSON_AddItemToArray(userScores, scoreObj);
+  
+  jsonData = cJSON_PrintUnformatted(root);
+
+  cJSON_Delete(root);
+  return jsonData;
+}
+
+bool saveScores(char *jsonData, char *fileName)
+{
+  bool success = true;
+
+  FILE *scoresJson = fopen(fileName, "w");
+  if (scoresJson == NULL)
+  {
+    printf("Unable to open '%s'.", fileName);
+    success = false;
+  }
+  else
+  {
+    fputs(jsonData, scoresJson);
+    fclose(scoresJson);
+  }
+
+  return success;
+}
+
 bool init(void)
 {
   printf("=== Start Of Program ===\n");
   bool success = true;
-
 
   /* Initializing SDL3 */
   if (SDL_Init(SDL_INIT_VIDEO) < 0)
@@ -1136,7 +1198,7 @@ bool init(void)
         success = false;
       }
       else
-      {  
+      {
         gWindow = SDL_CreateWindow("Astroids-P1", WIDTH, HEIGHT, SDL_WINDOW_BORDERLESS);
         if (gWindow == NULL)
         {
@@ -1162,7 +1224,7 @@ bool init(void)
             }
             else
             {
-              jetBrainsMono = TTF_OpenFont("Assets/JetBrainsMono-Medium.ttf", HEIGHT/50);
+              jetBrainsMono = TTF_OpenFont("Assets/JetBrainsMono-Medium.ttf", HEIGHT / 50);
               if (jetBrainsMono == NULL)
               {
                 printf("'JetBrainsMono-Medium.ttf' could not be loaded! SDL_ttf Error: %s\n", SDL_GetError());
@@ -1171,7 +1233,6 @@ bool init(void)
               {
                 /* code */
               }
-              
             }
           }
         }
@@ -1203,7 +1264,7 @@ void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button
     SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
     SDL_RenderClear(gRenderer);
 
-    for (uint8 i = 0; i < 3; i++) //Number of Buttons
+    for (uint8 i = 0; i < 3; i++) // Number of Buttons
     {
       TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
       int textHeight, textWidth;
@@ -1218,21 +1279,21 @@ void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button
         SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
         TTF_SetTextColor(buttonText, 0, 0, 0, 255);
       }
-      
+
       SDL_RenderFillRect(gRenderer, &buttons[i].rect);
-      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width/2 - textWidth/2,
-                                       buttons[i].posY + buttons[i].height/2 - textHeight/2);
+      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
+                           buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
     }
   }
-  
+
   else if (gameState == GAME)
   {
     SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
     SDL_RenderClear(gRenderer);
 
     SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    //SDL_RenderFillRect(gRenderer, &player.rect);
-    
+    // SDL_RenderFillRect(gRenderer, &player.rect);
+
     BulletList *bullPtr = &player->bullets;
     while (bullPtr != NULL)
     {
@@ -1245,7 +1306,7 @@ void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button
     }
 
     AsteroidList *astPtr = asteroids;
-    while(astPtr != NULL) /* Render Asteroids */
+    while (astPtr != NULL) /* Render Asteroids */
     {
       SDL_RenderFillRect(gRenderer, &astPtr->asteroid.rect);
       astPtr = astPtr->nextAsteroid;
@@ -1266,14 +1327,14 @@ void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button
       {
         SDL_SetRenderDrawColor(gRenderer, 255, 0, 255, 255);
       }
-      
+
       SDL_RenderFillRect(gRenderer, &powerPtr->power.rect);
 
       powerPtr = powerPtr->nextPowerUp;
     }
 
     char *fpsStr;
-    SDL_asprintf(&fpsStr, "%f", 1/(*fps));
+    SDL_asprintf(&fpsStr, "%f", 1 / (*fps));
     TTF_Text *fpsText = TTF_CreateText(gTextEngine, jetBrainsMono, fpsStr, 0);
     TTF_DrawRendererText(fpsText, WIDTH - 70, HEIGHT - 20);
 
@@ -1287,7 +1348,7 @@ void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button
     SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0x77);
     SDL_RenderFillRect(gRenderer, NULL);
 
-    for (uint8 i = 0; i < 2; i++) //Number of Buttons
+    for (uint8 i = 0; i < 2; i++) // Number of Buttons
     {
       TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
       int textHeight, textWidth;
@@ -1302,10 +1363,10 @@ void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button
         SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
         TTF_SetTextColor(buttonText, 0, 0, 0, 255);
       }
-      
+
       SDL_RenderFillRect(gRenderer, &buttons[i].rect);
-      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width/2 - textWidth/2,
-                                       buttons[i].posY + buttons[i].height/2 - textHeight/2);
+      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
+                           buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
     }
   }
 
@@ -1317,16 +1378,16 @@ void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button
     SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
     int textHeight, textWidth;
     TTF_GetTextSize(texts[0], &textWidth, &textHeight);
-    TTF_DrawRendererText(texts[0], WIDTH/2 - textWidth/2, HEIGHT/4 - textHeight/2);
+    TTF_DrawRendererText(texts[0], WIDTH / 2 - textWidth / 2, HEIGHT / 4 - textHeight / 2);
     TTF_GetTextSize(texts[1], &textWidth, &textHeight);
-    TTF_DrawRendererText(texts[1], WIDTH/2 - textWidth/2, 3*HEIGHT/4 - textHeight/2);
-    TTF_SetFontSize(jetBrainsMono, HEIGHT/50);
+    TTF_DrawRendererText(texts[1], WIDTH / 2 - textWidth / 2, 3 * HEIGHT / 4 - textHeight / 2);
+    TTF_SetFontSize(jetBrainsMono, HEIGHT / 50);
     TTF_GetTextSize(texts[2], &textWidth, &textHeight);
-    TTF_DrawRendererText(texts[2], WIDTH/2 - textWidth/2, 7 * HEIGHT/8 - textHeight/2);
-    TTF_SetFontSize(jetBrainsMono, 3*HEIGHT/50);
+    TTF_DrawRendererText(texts[2], WIDTH / 2 - textWidth / 2, 7 * HEIGHT / 8 - textHeight / 2);
+    TTF_SetFontSize(jetBrainsMono, 3 * HEIGHT / 50);
 
     char buttonsText[2][10] = {"Menu", "Replay"};
-    for (uint8 i = 0; i < 2; i++) //Number of Buttons
+    for (uint8 i = 0; i < 2; i++) // Number of Buttons
     {
       TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
       TTF_GetTextSize(buttonText, &textWidth, &textHeight);
@@ -1340,14 +1401,13 @@ void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button
         SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
         TTF_SetTextColor(buttonText, 0, 0, 0, 255);
       }
-      
+
       SDL_RenderFillRect(gRenderer, &buttons[i].rect);
-      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width/2 - textWidth/2,
-                                       buttons[i].posY + buttons[i].height/2 - textHeight/2);
+      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
+                           buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
     }
-   
   }
-  
+
   SDL_RenderPresent(gRenderer);
 }
 
@@ -1375,8 +1435,8 @@ int main(int argc, char *args[])
       playButton.hovered = 0;
       playButton.width = 200;
       playButton.height = 50;
-      playButton.posX = (WIDTH - playButton.width)/2;
-      playButton.posY = 1*HEIGHT/4 - playButton.height/2;
+      playButton.posX = (WIDTH - playButton.width) / 2;
+      playButton.posY = 1 * HEIGHT / 4 - playButton.height / 2;
       playButton.rect.w = playButton.width;
       playButton.rect.h = playButton.height;
       playButton.rect.x = playButton.posX;
@@ -1387,20 +1447,20 @@ int main(int argc, char *args[])
       scoreButton.hovered = 0;
       scoreButton.width = 200;
       scoreButton.height = 50;
-      scoreButton.posX = (WIDTH - scoreButton.width)/2;
-      scoreButton.posY = 2*HEIGHT/4 - scoreButton.height/2;
+      scoreButton.posX = (WIDTH - scoreButton.width) / 2;
+      scoreButton.posY = 2 * HEIGHT / 4 - scoreButton.height / 2;
       scoreButton.rect.w = scoreButton.width;
       scoreButton.rect.h = scoreButton.height;
       scoreButton.rect.x = scoreButton.posX;
       scoreButton.rect.y = scoreButton.posY;
-      
+
       Button quitButton; /* Quit */
       quitButton.clicked = 0;
       quitButton.hovered = 0;
       quitButton.width = 200;
       quitButton.height = 50;
-      quitButton.posX = (WIDTH - quitButton.width)/2;
-      quitButton.posY = 3*HEIGHT/4 - quitButton.height/2;
+      quitButton.posX = (WIDTH - quitButton.width) / 2;
+      quitButton.posY = 3 * HEIGHT / 4 - quitButton.height / 2;
       quitButton.rect.w = quitButton.width;
       quitButton.rect.h = quitButton.height;
       quitButton.rect.x = quitButton.posX;
@@ -1444,7 +1504,7 @@ int main(int argc, char *args[])
         {
           break;
         }
-        
+
         draw(NULL, NULL, NULL, buttons, NULL, NULL);
       }
     }
@@ -1453,7 +1513,6 @@ int main(int argc, char *args[])
     {
       /* Initializing Game Objects */
       /* Delta Timer */
-      gameState = OVER;
       DeltaTimer dTimer;
 
       dTimer.frameStart = SDL_GetPerformanceCounter();
@@ -1467,10 +1526,9 @@ int main(int argc, char *args[])
       /* Player */
       Player player;
       playerInit(&player);
-      
+
       /* Asteroids */
       AsteroidList asteroids = asteroidInit();
-
 
       Timer astSpawnTimer;
       timerStart(&astSpawnTimer);
@@ -1516,7 +1574,7 @@ int main(int argc, char *args[])
           TTF_SetFontSize(jetBrainsMono, 3 * HEIGHT / 50);
           char *tempText;
           SDL_asprintf(&tempText, "You destroyed %li asteroids \nin %i minutes and %i seconds", player.score, (player.gameTimer.ticks / 1000) / 60, (player.gameTimer.ticks / 1000) % 60);
-          TTF_Text* texts[3] = {};
+          TTF_Text *texts[3] = {};
           texts[0] = TTF_CreateText(gTextEngine, jetBrainsMono, tempText, 0);
           tempText = "Type the username. Press Escape to not save the score. Press Enter to save the score.\n(Empty Username won't be stored!)";
           texts[2] = TTF_CreateText(gTextEngine, jetBrainsMono, tempText, 0);
@@ -1527,8 +1585,8 @@ int main(int argc, char *args[])
           buttons[0].width = 250;
           buttons[0].height = 100;
           buttons[0].hovered = 0;
-          buttons[0].posX = WIDTH/3 - buttons[0].width/2;
-          buttons[0].posY = 2*HEIGHT/4;
+          buttons[0].posX = WIDTH / 3 - buttons[0].width / 2;
+          buttons[0].posY = 2 * HEIGHT / 4;
           buttons[0].rect.x = buttons[0].posX;
           buttons[0].rect.y = buttons[0].posY;
           buttons[0].rect.w = buttons[0].width;
@@ -1538,15 +1596,15 @@ int main(int argc, char *args[])
           buttons[1].width = 250;
           buttons[1].height = 100;
           buttons[1].hovered = 0;
-          buttons[1].posX = 2*WIDTH/3 - buttons[1].width/2;
-          buttons[1].posY = 2*HEIGHT/4;
+          buttons[1].posX = 2 * WIDTH / 3 - buttons[1].width / 2;
+          buttons[1].posY = 2 * HEIGHT / 4;
           buttons[1].rect.x = buttons[1].posX;
           buttons[1].rect.y = buttons[1].posY;
           buttons[1].rect.w = buttons[1].width;
           buttons[1].rect.h = buttons[1].height;
-          
+
           bool textInput = true;
-          SDL_Rect textArea = {WIDTH/2, 3*HEIGHT/4, 200, 60};
+          SDL_Rect textArea = {WIDTH / 2, 3 * HEIGHT / 4, 200, 60};
           char playerName[50] = {};
           int nameCursor = 0;
           SDL_SetTextInputArea(gWindow, &textArea, 0);
@@ -1563,7 +1621,7 @@ int main(int argc, char *args[])
                 next = true;
                 run = false;
               }
-              
+
               else if (e.type == SDL_EVENT_TEXT_INPUT && nameCursor < sizeof(playerName) - 1)
               {
                 SDL_strlcat(playerName, e.text.text, sizeof(playerName));
@@ -1574,8 +1632,8 @@ int main(int argc, char *args[])
               {
                 if (e.key.key == SDLK_RETURN)
                 {
-                  SDL_StopTextInput(gWindow);  
-                  textInput = false;  
+                  SDL_StopTextInput(gWindow);
+                  textInput = false;
                 }
                 else if (e.key.key == SDLK_ESCAPE)
                 {
@@ -1589,11 +1647,9 @@ int main(int argc, char *args[])
                   playerName[nameCursor] = '\0';
                 }
               }
-
-
             }
             texts[1] = TTF_CreateText(gTextEngine, jetBrainsMono, playerName, 0);
-            
+
             for (int i = 0; i < 2; i++)
             {
               buttonStateUpdater(&buttons[i]);
@@ -1608,8 +1664,16 @@ int main(int argc, char *args[])
               gameState = GAME;
             }
 
-            if (gameState != OVER) {
-              TTF_SetFontSize(jetBrainsMono, HEIGHT/50);
+            if (gameState != OVER)
+            {
+              if (strcmp(playerName, "") != 0)
+              {
+                char *jsonData = extractScores("scores.json");
+                jsonData = updateScores(jsonData, playerName, player.score, player.gameTimer.ticks / 1000);
+                saveScores(jsonData, "scores.json");
+              }
+              
+              TTF_SetFontSize(jetBrainsMono, HEIGHT / 50);
               break;
             }
 
@@ -1625,8 +1689,8 @@ int main(int argc, char *args[])
           resumeButton.hovered = 0;
           resumeButton.width = 200;
           resumeButton.height = 50;
-          resumeButton.posX = (WIDTH - resumeButton.width)/2;
-          resumeButton.posY = 1*HEIGHT/3.f - resumeButton.height/2;
+          resumeButton.posX = (WIDTH - resumeButton.width) / 2;
+          resumeButton.posY = 1 * HEIGHT / 3.f - resumeButton.height / 2;
           resumeButton.rect.w = resumeButton.width;
           resumeButton.rect.h = resumeButton.height;
           resumeButton.rect.x = resumeButton.posX;
@@ -1637,8 +1701,8 @@ int main(int argc, char *args[])
           menuButton.hovered = 0;
           menuButton.width = 200;
           menuButton.height = 50;
-          menuButton.posX = (WIDTH - menuButton.width)/2;
-          menuButton.posY = 2*HEIGHT/3.f - menuButton.height/2;
+          menuButton.posX = (WIDTH - menuButton.width) / 2;
+          menuButton.posY = 2 * HEIGHT / 3.f - menuButton.height / 2;
           menuButton.rect.w = menuButton.width;
           menuButton.rect.h = menuButton.height;
           menuButton.rect.x = menuButton.posX;
@@ -1659,7 +1723,7 @@ int main(int argc, char *args[])
                 paused = false;
                 run = false;
               }
-              
+
               if (e.type == SDL_EVENT_KEY_DOWN && e.key.repeat == false)
               {
                 if (e.key.key == SDLK_ESCAPE)
@@ -1691,9 +1755,8 @@ int main(int argc, char *args[])
             {
               break;
             }
-            
-            draw(NULL, NULL, NULL, buttons, NULL, NULL);
 
+            draw(NULL, NULL, NULL, buttons, NULL, NULL);
           }
         }
 
@@ -1701,11 +1764,11 @@ int main(int argc, char *args[])
         {
           break;
         }
-        
+
         draw(&player, &asteroids, &powerUps, NULL, &fps, NULL); /* Draw, Blit and Render */
 
         frameEnd = SDL_GetPerformanceCounter();
-        fps = (frameEnd - frameStart)/(float) SDL_GetPerformanceFrequency();
+        fps = (frameEnd - frameStart) / (float)SDL_GetPerformanceFrequency();
       }
     }
   }
