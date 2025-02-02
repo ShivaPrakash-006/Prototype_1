@@ -1915,7 +1915,7 @@ int main(int argc, char *args[])
           texts[1] = TTF_CreateText(gTextEngine, jetBrainsMono, username, 0);
         else
         {
-          if (username[0] == '\0');
+          if (username[0] == '\0')
           {
             for (int i = 0; i < 9; i++)
             {
@@ -1923,12 +1923,48 @@ int main(int argc, char *args[])
               if (jScoreObj != NULL)
               {
                 cJSON *jUsername = cJSON_GetObjectItem(jScoreObj, "Username");
-                char *username = jUsername->valuestring;
+                char *userName = jUsername->valuestring;
                 cJSON *jScore = cJSON_GetObjectItem(jScoreObj, "Score");
                 int score = jScore->valueint;
                 cJSON *jTime = cJSON_GetObjectItem(jScoreObj, "Time");
                 int time = jTime->valueint;
-                strcpy(scores[i].username, username);
+                strcpy(scores[i].username, userName);
+                scores[i].score = score;
+                scores[i].time = time;
+              }
+              else
+              {
+                strcpy(scores[i].username, "");
+                scores[i].score = 0;
+                scores[i].time = 0;
+              }
+            }
+          }
+          else
+          {
+            cJSON *userArr = cJSON_CreateArray();
+            cJSON *userScore = NULL;
+            int arrSize = cJSON_GetArraySize(scoreArr);
+            for (int i = 0; i < arrSize; i++)
+            {
+              userScore = cJSON_GetArrayItem(scoreArr, i);
+              if (strncmp(cJSON_GetObjectItem(userScore, "Username")->valuestring, username, 50) == 0)
+                cJSON_AddItemReferenceToArray(userArr, userScore);
+            }
+            
+
+            for (int i = 0; i < 9; i++)
+            {
+              cJSON *jScoreObj = cJSON_GetArrayItem(userArr, scoreCursor + i);
+              if (jScoreObj != NULL)
+              {
+                cJSON *jUsername = cJSON_GetObjectItem(jScoreObj, "Username");
+                char *userName = jUsername->valuestring;
+                cJSON *jScore = cJSON_GetObjectItem(jScoreObj, "Score");
+                int score = jScore->valueint;
+                cJSON *jTime = cJSON_GetObjectItem(jScoreObj, "Time");
+                int time = jTime->valueint;
+                strcpy(scores[i].username, userName);
                 scores[i].score = score;
                 scores[i].time = time;
               }
@@ -1941,8 +1977,6 @@ int main(int argc, char *args[])
             }
           }
         }
-        
-
 
         if (gameState != SCORES)
         {
