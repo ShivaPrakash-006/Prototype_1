@@ -1111,6 +1111,12 @@ bool buttonStateUpdater(Button *button)
   }
 }
 
+typedef struct ScoreObj {
+  char username[50];
+  int score;
+  int time;
+} ScoreObj;
+
 char* extractScores(char *fileName)
 {
   FILE *scoreJson = fopen(fileName, "r");
@@ -1135,17 +1141,20 @@ char* updateScores(char *jsonData, char *username, int score, int time)
 {
   cJSON *root = jsonData[0] != '\0' ? cJSON_Parse(jsonData) : cJSON_CreateObject();
 
-  cJSON *userScores = cJSON_GetObjectItem(root, username);
+  cJSON *userScores = cJSON_GetObjectItem(root, "Scores");
   if (userScores == NULL)
   {
     userScores = cJSON_CreateArray();
-    cJSON_AddItemToObject(root, username, userScores);
+    cJSON_AddItemToObject(root, "Scores", userScores);
   }
 
   cJSON *scoreObj = cJSON_CreateObject();
+  cJSON_AddStringToObject(scoreObj, "Username", username);
   cJSON_AddNumberToObject(scoreObj, "Score", score);
   cJSON_AddNumberToObject(scoreObj, "Time", time);
   cJSON_AddItemToArray(userScores, scoreObj);
+
+  // SORT DATA HERE
   
   jsonData = cJSON_PrintUnformatted(root);
 
@@ -1411,7 +1420,7 @@ void drawOver(Button *buttons, TTF_Text **texts)
   SDL_RenderPresent(gRenderer);
 }
 
-void drawScores(Button *buttons, TTF_Text **texts)
+void drawScores(Button *buttons, TTF_Text **texts, ScoreObj *scores)
 {
   SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
   SDL_RenderClear(gRenderer);
@@ -1427,6 +1436,31 @@ void drawScores(Button *buttons, TTF_Text **texts)
     TTF_GetTextSize(texts[1], &textWidth, &textHeight);
     TTF_DrawRendererText(texts[1], WIDTH / 2 - textWidth / 2, 2 * HEIGHT / 4 - textHeight / 2);
   }
+  else
+  {
+    char *tempStr;
+    TTF_Text *tempText = NULL;
+    for (int i = 0; i < 9; i++)
+    {
+      if (scores[i].username[0] != '\0')
+      {
+        int textWidth, textHeight;
+        SDL_asprintf(&tempStr, scores[i].username);
+        tempText = TTF_CreateText(gTextEngine, jetBrainsMono, tempStr, 0);
+        TTF_GetTextSize(tempText, &textWidth, &textHeight);
+        TTF_DrawRendererText(tempText, 10, ((i + 2)* HEIGHT / 11) - (textHeight / 2));
+        SDL_asprintf(&tempStr, "%i", scores[i].score);
+        tempText = TTF_CreateText(gTextEngine, jetBrainsMono, tempStr, 0);
+        TTF_GetTextSize(tempText, &textWidth, &textHeight);
+        TTF_DrawRendererText(tempText, WIDTH/2 - textWidth/2, ((i + 2) * HEIGHT / 11) - (textHeight / 2));
+        SDL_asprintf(&tempStr, "%i", scores[i].time);
+        tempText = TTF_CreateText(gTextEngine, jetBrainsMono, tempStr, 0);
+        TTF_GetTextSize(tempText, &textWidth, &textHeight);
+        TTF_DrawRendererText(tempText, WIDTH - (10 + textWidth), ((i + 2) * HEIGHT / 11) - (textHeight / 2));
+      }
+    }
+  }
+
 
   SDL_RenderPresent(gRenderer);
 }
@@ -1805,8 +1839,26 @@ int main(int argc, char *args[])
     {
       
       char *jsonData = extractScores("scores.json");
+      cJSON *root = NULL;
+      cJSON *scoreArr = NULL;
+      if (jsonData == NULL)
+      {
+        root = cJSON_CreateObject();
+        scoreArr = cJSON_CreateArray();
+        cJSON_AddItemToObject(root, "Scores", scoreArr);
+      }
+      else
+      {
+        root = cJSON_Parse(jsonData);
+        scoreArr = cJSON_GetObjectItem(root, "Scores");
+      }
+
+      free(jsonData);
+      cJSON_free(root);
       
-      TTF_Text *texts[2] = {};
+      ScoreObj scores[9];
+      int scoreCursor = 0;
+      TTF_Text *texts[4] = {};
 
       char tempText[] = "Enter Username to get Scores. Leave empty to get all.";
       texts[0] = TTF_CreateText(gTextEngine, jetBrainsMono, tempText, 0);
@@ -1861,13 +1913,44 @@ int main(int argc, char *args[])
         }
         if (textInput)
           texts[1] = TTF_CreateText(gTextEngine, jetBrainsMono, username, 0);
-          
+        else
+        {
+          if (username[0] == '\0');
+          {
+            for (int i = 0; i < 9; i++)
+            {
+              cJSON *jScoreObj = cJSON_GetArrayItem(scoreArr, scoreCursor + i);
+              if (jScoreObj != NULL)
+              {
+                cJSON *jUsername = cJSON_GetObjectItem(jScoreObj, "Username");
+                char *username = jUsername->valuestring;
+                cJSON *jScore = cJSON_GetObjectItem(jScoreObj, "Score");
+                int score = jScore->valueint;
+                cJSON *jTime = cJSON_GetObjectItem(jScoreObj, "Time");
+                int time = jTime->valueint;
+                strcpy(scores[i].username, username);
+                scores[i].score = score;
+                scores[i].time = time;
+              }
+              else
+              {
+                strcpy(scores[i].username, "");
+                scores[i].score = 0;
+                scores[i].time = 0;
+              }
+            }
+          }
+        }
+        
+
+
         if (gameState != SCORES)
         {
+          TTF_SetFontSize(jetBrainsMono, HEIGHT/50);
           break;
         }
 
-        drawScores(NULL, texts);
+        drawScores(NULL, texts, scores);
       }
     }
   }
