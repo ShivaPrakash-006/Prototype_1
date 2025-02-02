@@ -1081,6 +1081,7 @@ typedef struct Button
   bool clicked;
 
   SDL_FRect rect;
+  TTF_Text *text;
 
 } Button;
 
@@ -1438,25 +1439,64 @@ void drawScores(Button *buttons, TTF_Text **texts, ScoreObj *scores)
   }
   else
   {
+    TTF_SetFontSize(jetBrainsMono, HEIGHT/50);
+    for (uint8 i = 0; i < 2; i++) // Number of Buttons
+    {
+      int textHeight, textWidth;
+      TTF_GetTextSize(buttons[i].text, &textWidth, &textHeight);
+      if (buttons[i].hovered)
+      {
+        SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
+        TTF_SetTextColor(buttons[i].text, 255, 255, 255, 255);
+      }
+      else
+      {
+        SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
+        TTF_SetTextColor(buttons[i].text, 0, 0, 0, 255);
+      }
+
+      SDL_RenderFillRect(gRenderer, &buttons[i].rect);
+      TTF_DrawRendererText(buttons[i].text, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
+                            buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
+    }
+
+    int textWidth, textHeight;
+    TTF_GetTextSize(texts[2], &textWidth, &textHeight);
+    TTF_DrawRendererText(texts[2], WIDTH/2 - textWidth/2, 50 - textHeight/2);
+    TTF_SetFontSize(jetBrainsMono, 3 * HEIGHT / 50);
+    
     char *tempStr;
     TTF_Text *tempText = NULL;
-    for (int i = 0; i < 9; i++)
+    
+    SDL_asprintf(&tempStr, "Username");
+    tempText = TTF_CreateText(gTextEngine, jetBrainsMono, tempStr, 0);
+    TTF_GetTextSize(tempText, &textWidth, &textHeight);
+    TTF_DrawRendererText(tempText, 10, (2 * HEIGHT / 11) - (textHeight / 2));
+    SDL_asprintf(&tempStr, "Asteroids Destroyed");
+    tempText = TTF_CreateText(gTextEngine, jetBrainsMono, tempStr, 0);
+    TTF_GetTextSize(tempText, &textWidth, &textHeight);
+    TTF_DrawRendererText(tempText, WIDTH/2 - textWidth/2, (2 * HEIGHT / 11) - (textHeight / 2));
+    SDL_asprintf(&tempStr, "Time Survived");
+    tempText = TTF_CreateText(gTextEngine, jetBrainsMono, tempStr, 0);
+    TTF_GetTextSize(tempText, &textWidth, &textHeight);
+    TTF_DrawRendererText(tempText, WIDTH - (10 + textWidth), (2 * HEIGHT / 11) - (textHeight / 2));
+    
+    for (int i = 0; i < 8; i++)
     {
       if (scores[i].username[0] != '\0')
       {
-        int textWidth, textHeight;
         SDL_asprintf(&tempStr, scores[i].username);
         tempText = TTF_CreateText(gTextEngine, jetBrainsMono, tempStr, 0);
         TTF_GetTextSize(tempText, &textWidth, &textHeight);
-        TTF_DrawRendererText(tempText, 10, ((i + 2)* HEIGHT / 11) - (textHeight / 2));
+        TTF_DrawRendererText(tempText, 10, ((i + 3)* HEIGHT / 11) - (textHeight / 2));
         SDL_asprintf(&tempStr, "%i", scores[i].score);
         tempText = TTF_CreateText(gTextEngine, jetBrainsMono, tempStr, 0);
         TTF_GetTextSize(tempText, &textWidth, &textHeight);
-        TTF_DrawRendererText(tempText, WIDTH/2 - textWidth/2, ((i + 2) * HEIGHT / 11) - (textHeight / 2));
+        TTF_DrawRendererText(tempText, WIDTH/2 - textWidth/2, ((i + 3) * HEIGHT / 11) - (textHeight / 2));
         SDL_asprintf(&tempStr, "%i", scores[i].time);
         tempText = TTF_CreateText(gTextEngine, jetBrainsMono, tempStr, 0);
         TTF_GetTextSize(tempText, &textWidth, &textHeight);
-        TTF_DrawRendererText(tempText, WIDTH - (10 + textWidth), ((i + 2) * HEIGHT / 11) - (textHeight / 2));
+        TTF_DrawRendererText(tempText, WIDTH - (10 + textWidth), ((i + 3) * HEIGHT / 11) - (textHeight / 2));
       }
     }
   }
@@ -1837,17 +1877,43 @@ int main(int argc, char *args[])
   
     else if (gameState == SCORES)
     {
+      Button buttons[2];
+
+      buttons[0].text = TTF_CreateText(gTextEngine, jetBrainsMono, "Sort By", 0);
+      buttons[0].clicked = 0;
+      buttons[0].hovered = 0;
+      buttons[0].width = 200;
+      buttons[0].height = 50;
+      buttons[0].posX = 10;
+      buttons[0].posY = 1 * HEIGHT / 11 - buttons[0].height / 2;
+      buttons[0].rect.w = buttons[0].width;
+      buttons[0].rect.h = buttons[0].height;
+      buttons[0].rect.x = buttons[0].posX;
+      buttons[0].rect.y = buttons[0].posY;
+
+      buttons[1].text = TTF_CreateText(gTextEngine, jetBrainsMono, "Search", 0);
+      buttons[1].clicked = 0;
+      buttons[1].hovered = 0;
+      buttons[1].width = 200;
+      buttons[1].height = 50;
+      buttons[1].posX = WIDTH - buttons[1].width - 10;
+      buttons[1].posY = 1 * HEIGHT / 11 - buttons[1].height / 2;
+      buttons[1].rect.w = buttons[1].width;
+      buttons[1].rect.h = buttons[1].height;
+      buttons[1].rect.x = buttons[1].posX;
+      buttons[1].rect.y = buttons[1].posY;
+
       
-      char *jsonData = extractScores("scores.json");
+      char *jsonData = extractScores("scores.json"); /* Grab Data */
       cJSON *root = NULL;
       cJSON *scoreArr = NULL;
-      if (jsonData == NULL)
+      if (jsonData == NULL) /* Doesn't Exist -> Create New */
       {
         root = cJSON_CreateObject();
         scoreArr = cJSON_CreateArray();
         cJSON_AddItemToObject(root, "Scores", scoreArr);
       }
-      else
+      else /* Exist -> Use Existing*/
       {
         root = cJSON_Parse(jsonData);
         scoreArr = cJSON_GetObjectItem(root, "Scores");
@@ -1856,12 +1922,13 @@ int main(int argc, char *args[])
       free(jsonData);
       cJSON_free(root);
       
-      ScoreObj scores[9];
+      ScoreObj scores[8]; /* 8 Scores At A Time */
       int scoreCursor = 0;
       TTF_Text *texts[4] = {};
 
       char tempText[] = "Enter Username to get Scores. Leave empty to get all.";
       texts[0] = TTF_CreateText(gTextEngine, jetBrainsMono, tempText, 0);
+      texts[2] = TTF_CreateText(gTextEngine, jetBrainsMono, "Press Esc to go back to menu", 0);
 
       char username[50] = {};
       int nameCursor = 0;
@@ -1910,14 +1977,30 @@ int main(int argc, char *args[])
             if (e.key.key == SDLK_ESCAPE)
               gameState = MENU;
           }
+        
+          else if (e.type == SDL_EVENT_MOUSE_WHEEL && !textInput)
+          {
+            scoreCursor -= (int) e.wheel.y;
+          }
         }
         if (textInput)
           texts[1] = TTF_CreateText(gTextEngine, jetBrainsMono, username, 0);
         else
         {
+          for (int i = 0; i < 2; i++)
+          {
+            buttonStateUpdater(&buttons[i]);
+          }
+
+          //if (buttons[0].clicked) //SORT
+
+
+          if (buttons[1].clicked)
+            break;
+
           if (username[0] == '\0')
           {
-            for (int i = 0; i < 9; i++)
+            for (int i = 0; i < 8; i++)
             {
               cJSON *jScoreObj = cJSON_GetArrayItem(scoreArr, scoreCursor + i);
               if (jScoreObj != NULL)
@@ -1953,7 +2036,7 @@ int main(int argc, char *args[])
             }
             
 
-            for (int i = 0; i < 9; i++)
+            for (int i = 0; i < 8; i++)
             {
               cJSON *jScoreObj = cJSON_GetArrayItem(userArr, scoreCursor + i);
               if (jScoreObj != NULL)
@@ -1984,7 +2067,7 @@ int main(int argc, char *args[])
           break;
         }
 
-        drawScores(NULL, texts, scores);
+        drawScores(buttons, texts, scores);
       }
     }
   }

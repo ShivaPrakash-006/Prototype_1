@@ -1,1 +1,14 @@
-{"Scores":[{"Username":"Phoenix","Score":110,"Time":38},{"Username":"Phoenix","Score":131,"Time":30},{"Username":"Phoenix","Score":148,"Time":31},{"Username":"Lazycat","Score":281,"Time":59},{"Username":"Lazycat","Score":381,"Time":35}]}
+{
+  "Scores": [
+    { "Username": "Phoenix", "Score": 110, "Time": 38 },
+    { "Username": "Phoenix", "Score": 131, "Time": 30 },
+    { "Username": "Phoenix", "Score": 148, "Time": 31 },
+    { "Username": "Lazycat", "Score": 281, "Time": 59 },
+    { "Username": "Lazycat", "Score": 381, "Time": 35 },
+    { "Username": "Lazycat", "Score": 50, "Time": 18 },
+    { "Username": "Alan", "Score": 34, "Time": 21 },
+    { "Username": "Phoenix", "Score": 1, "Time": 21 },
+    { "Username": "Phoenix", "Score": 132, "Time": 35 },
+    { "Username": "Lazycat", "Score": 21, "Time": 21 }
+  ]
+}
