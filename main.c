@@ -1256,156 +1256,176 @@ bool load(Player *player) /* Get Game Objects and load their respective assets *
   return success;
 }
 
-void draw(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, Button *buttons, float *fps, TTF_Text **texts)
+void drawMenu(Button *buttons)
 {
-  if (gameState == MENU)
+  char buttonsText[3][10] = {"Play", "Scores", "Quit"};
+  SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
+  SDL_RenderClear(gRenderer);
+
+  for (uint8 i = 0; i < 3; i++) // Number of Buttons
   {
-    char buttonsText[3][10] = {"Play", "Scores", "Quit"};
-    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
-    SDL_RenderClear(gRenderer);
-
-    for (uint8 i = 0; i < 3; i++) // Number of Buttons
-    {
-      TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
-      int textHeight, textWidth;
-      TTF_GetTextSize(buttonText, &textWidth, &textHeight);
-      if (buttons[i].hovered)
-      {
-        SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
-        TTF_SetTextColor(buttonText, 255, 255, 255, 255);
-      }
-      else
-      {
-        SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
-        TTF_SetTextColor(buttonText, 0, 0, 0, 255);
-      }
-
-      SDL_RenderFillRect(gRenderer, &buttons[i].rect);
-      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
-                           buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
-    }
-  }
-
-  else if (gameState == GAME)
-  {
-    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
-    SDL_RenderClear(gRenderer);
-
-    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    // SDL_RenderFillRect(gRenderer, &player.rect);
-
-    BulletList *bullPtr = &player->bullets;
-    while (bullPtr != NULL)
-    {
-      if (!SDL_HasRectIntersectionFloat(&player->rect, &bullPtr->bullet.rect) && bullPtr->bullet.damage != -1)
-      {
-        SDL_RenderRect(gRenderer, &bullPtr->bullet.rect); /* Render Bullets only when they're a bit away from you*/
-      }
-
-      bullPtr = bullPtr->nextBullet;
-    }
-
-    AsteroidList *astPtr = asteroids;
-    while (astPtr != NULL) /* Render Asteroids */
-    {
-      SDL_RenderFillRect(gRenderer, &astPtr->asteroid.rect);
-      astPtr = astPtr->nextAsteroid;
-    }
-
-    PowerUpList *powerPtr = powerUps;
-    while (powerPtr != NULL)
-    {
-      if (powerPtr->power.powerUp == SHIELD)
-      {
-        SDL_SetRenderDrawColor(gRenderer, 0, 0, 255, 255);
-      }
-      else if (powerPtr->power.powerUp == ARMOR)
-      {
-        SDL_SetRenderDrawColor(gRenderer, 255, 0, 0, 255);
-      }
-      else if (powerPtr->power.powerUp == INFFUEL)
-      {
-        SDL_SetRenderDrawColor(gRenderer, 255, 0, 255, 255);
-      }
-
-      SDL_RenderFillRect(gRenderer, &powerPtr->power.rect);
-
-      powerPtr = powerPtr->nextPowerUp;
-    }
-
-    char *fpsStr;
-    SDL_asprintf(&fpsStr, "%f", 1 / (*fps));
-    TTF_Text *fpsText = TTF_CreateText(gTextEngine, jetBrainsMono, fpsStr, 0);
-    TTF_DrawRendererText(fpsText, WIDTH - 70, HEIGHT - 20);
-
-    playerTextHandler(player);
-    playerRender(*player);
-  }
-
-  if (gameState == PAUSED)
-  {
-    char buttonsText[2][10] = {"Resume", "Menu"};
-    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0x77);
-    SDL_RenderFillRect(gRenderer, NULL);
-
-    for (uint8 i = 0; i < 2; i++) // Number of Buttons
-    {
-      TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
-      int textHeight, textWidth;
-      TTF_GetTextSize(buttonText, &textWidth, &textHeight);
-      if (buttons[i].hovered)
-      {
-        SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
-        TTF_SetTextColor(buttonText, 255, 255, 255, 255);
-      }
-      else
-      {
-        SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
-        TTF_SetTextColor(buttonText, 0, 0, 0, 255);
-      }
-
-      SDL_RenderFillRect(gRenderer, &buttons[i].rect);
-      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
-                           buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
-    }
-  }
-
-  if (gameState == OVER)
-  {
-    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
-    SDL_RenderClear(gRenderer);
-
-    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+    TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
     int textHeight, textWidth;
-    TTF_GetTextSize(texts[0], &textWidth, &textHeight);
-    TTF_DrawRendererText(texts[0], WIDTH / 2 - textWidth / 2, HEIGHT / 4 - textHeight / 2);
-    TTF_GetTextSize(texts[1], &textWidth, &textHeight);
-    TTF_DrawRendererText(texts[1], WIDTH / 2 - textWidth / 2, 3 * HEIGHT / 4 - textHeight / 2);
-    TTF_SetFontSize(jetBrainsMono, HEIGHT / 50);
-    TTF_GetTextSize(texts[2], &textWidth, &textHeight);
-    TTF_DrawRendererText(texts[2], WIDTH / 2 - textWidth / 2, 7 * HEIGHT / 8 - textHeight / 2);
-    TTF_SetFontSize(jetBrainsMono, 3 * HEIGHT / 50);
-
-    char buttonsText[2][10] = {"Menu", "Replay"};
-    for (uint8 i = 0; i < 2; i++) // Number of Buttons
+    TTF_GetTextSize(buttonText, &textWidth, &textHeight);
+    if (buttons[i].hovered)
     {
-      TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
-      TTF_GetTextSize(buttonText, &textWidth, &textHeight);
-      if (buttons[i].hovered)
-      {
-        SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
-        TTF_SetTextColor(buttonText, 255, 255, 255, 255);
-      }
-      else
-      {
-        SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
-        TTF_SetTextColor(buttonText, 0, 0, 0, 255);
-      }
-
-      SDL_RenderFillRect(gRenderer, &buttons[i].rect);
-      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
-                           buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
+      SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
+      TTF_SetTextColor(buttonText, 255, 255, 255, 255);
     }
+    else
+    {
+      SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
+      TTF_SetTextColor(buttonText, 0, 0, 0, 255);
+    }
+
+    SDL_RenderFillRect(gRenderer, &buttons[i].rect);
+    TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
+                          buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
+  }
+
+  SDL_RenderPresent(gRenderer);
+}
+
+void drawGame(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, TTF_Text *fpsText)
+{
+  SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
+  SDL_RenderClear(gRenderer);
+
+  SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+  // SDL_RenderFillRect(gRenderer, &player.rect);
+
+  BulletList *bullPtr = &player->bullets;
+  while (bullPtr != NULL)
+  {
+    if (!SDL_HasRectIntersectionFloat(&player->rect, &bullPtr->bullet.rect) && bullPtr->bullet.damage != -1)
+    {
+      SDL_RenderRect(gRenderer, &bullPtr->bullet.rect); /* Render Bullets only when they're a bit away from you*/
+    }
+
+    bullPtr = bullPtr->nextBullet;
+  }
+
+  AsteroidList *astPtr = asteroids;
+  while (astPtr != NULL) /* Render Asteroids */
+  {
+    SDL_RenderFillRect(gRenderer, &astPtr->asteroid.rect);
+    astPtr = astPtr->nextAsteroid;
+  }
+
+  PowerUpList *powerPtr = powerUps;
+  while (powerPtr != NULL)
+  {
+    if (powerPtr->power.powerUp == SHIELD)
+    {
+      SDL_SetRenderDrawColor(gRenderer, 0, 0, 255, 255);
+    }
+    else if (powerPtr->power.powerUp == ARMOR)
+    {
+      SDL_SetRenderDrawColor(gRenderer, 255, 0, 0, 255);
+    }
+    else if (powerPtr->power.powerUp == INFFUEL)
+    {
+      SDL_SetRenderDrawColor(gRenderer, 255, 0, 255, 255);
+    }
+
+    SDL_RenderFillRect(gRenderer, &powerPtr->power.rect);
+
+    powerPtr = powerPtr->nextPowerUp;
+  }
+
+  TTF_DrawRendererText(fpsText, WIDTH - 70, HEIGHT - 20);
+
+  playerTextHandler(player);
+  playerRender(*player);
+
+  SDL_RenderPresent(gRenderer);
+}
+
+void drawPaused(Button *buttons)
+{
+  char buttonsText[2][10] = {"Resume", "Menu"};
+  SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0x77);
+  SDL_RenderFillRect(gRenderer, NULL);
+
+  for (uint8 i = 0; i < 2; i++) // Number of Buttons
+  {
+    TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
+    int textHeight, textWidth;
+    TTF_GetTextSize(buttonText, &textWidth, &textHeight);
+    if (buttons[i].hovered)
+    {
+      SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
+      TTF_SetTextColor(buttonText, 255, 255, 255, 255);
+    }
+    else
+    {
+      SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
+      TTF_SetTextColor(buttonText, 0, 0, 0, 255);
+    }
+
+    SDL_RenderFillRect(gRenderer, &buttons[i].rect);
+    TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
+                          buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
+  }
+
+  SDL_RenderPresent(gRenderer);
+}
+
+void drawOver(Button *buttons, TTF_Text **texts)
+{
+  SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
+  SDL_RenderClear(gRenderer);
+
+  SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+  int textHeight, textWidth;
+  TTF_GetTextSize(texts[0], &textWidth, &textHeight);
+  TTF_DrawRendererText(texts[0], WIDTH / 2 - textWidth / 2, HEIGHT / 4 - textHeight / 2);
+  TTF_GetTextSize(texts[1], &textWidth, &textHeight);
+  TTF_DrawRendererText(texts[1], WIDTH / 2 - textWidth / 2, 3 * HEIGHT / 4 - textHeight / 2);
+  TTF_SetFontSize(jetBrainsMono, HEIGHT / 50);
+  TTF_GetTextSize(texts[2], &textWidth, &textHeight);
+  TTF_DrawRendererText(texts[2], WIDTH / 2 - textWidth / 2, 7 * HEIGHT / 8 - textHeight / 2);
+  TTF_SetFontSize(jetBrainsMono, 3 * HEIGHT / 50);
+
+  char buttonsText[2][10] = {"Menu", "Replay"};
+  for (uint8 i = 0; i < 2; i++) // Number of Buttons
+  {
+    TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
+    TTF_GetTextSize(buttonText, &textWidth, &textHeight);
+    if (buttons[i].hovered)
+    {
+      SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
+      TTF_SetTextColor(buttonText, 255, 255, 255, 255);
+    }
+    else
+    {
+      SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
+      TTF_SetTextColor(buttonText, 0, 0, 0, 255);
+    }
+
+    SDL_RenderFillRect(gRenderer, &buttons[i].rect);
+    TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
+                          buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
+  }
+
+  SDL_RenderPresent(gRenderer);
+}
+
+void drawScores(Button *buttons, TTF_Text **texts)
+{
+  SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
+  SDL_RenderClear(gRenderer);
+
+  SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+  if (texts[0] != NULL)
+  {
+    int textHeight, textWidth;
+    TTF_SetFontSize(jetBrainsMono, HEIGHT / 50);
+    TTF_GetTextSize(texts[0], &textWidth, &textHeight);
+    TTF_DrawRendererText(texts[0], WIDTH / 2 - textWidth / 2, 3 *HEIGHT / 4 - textHeight / 2);
+    TTF_SetFontSize(jetBrainsMono, 3 * HEIGHT / 50);
+    TTF_GetTextSize(texts[1], &textWidth, &textHeight);
+    TTF_DrawRendererText(texts[1], WIDTH / 2 - textWidth / 2, 2 * HEIGHT / 4 - textHeight / 2);
   }
 
   SDL_RenderPresent(gRenderer);
@@ -1494,6 +1514,11 @@ int main(int argc, char *args[])
           gameState = GAME;
         }
 
+        else if (buttons[1].clicked == true)
+        {
+          gameState = SCORES;
+        }
+
         else if (buttons[2].clicked == true)
         {
           exited = true;
@@ -1505,11 +1530,11 @@ int main(int argc, char *args[])
           break;
         }
 
-        draw(NULL, NULL, NULL, buttons, NULL, NULL);
+        drawMenu(buttons);
       }
     }
 
-    else if (gameState == GAME)
+    else if (gameState == GAME) /* Gameplay */
     {
       /* Initializing Game Objects */
       /* Delta Timer */
@@ -1607,7 +1632,7 @@ int main(int argc, char *args[])
           SDL_Rect textArea = {WIDTH / 2, 3 * HEIGHT / 4, 200, 60};
           char playerName[50] = {};
           int nameCursor = 0;
-          SDL_SetTextInputArea(gWindow, &textArea, 0);
+          SDL_SetTextInputArea(gWindow, NULL, 0);
           SDL_StartTextInput(gWindow);
 
           SDL_Event e;
@@ -1677,7 +1702,7 @@ int main(int argc, char *args[])
               break;
             }
 
-            draw(NULL, NULL, NULL, buttons, NULL, texts);
+            drawOver(buttons, texts);
           }
         }
         else if (gameState == PAUSED)
@@ -1756,7 +1781,7 @@ int main(int argc, char *args[])
               break;
             }
 
-            draw(NULL, NULL, NULL, buttons, NULL, NULL);
+            drawPaused(buttons);
           }
         }
 
@@ -1765,10 +1790,84 @@ int main(int argc, char *args[])
           break;
         }
 
-        draw(&player, &asteroids, &powerUps, NULL, &fps, NULL); /* Draw, Blit and Render */
+        char *fpsStr;
+        SDL_asprintf(&fpsStr, "%f", 1 / fps);
+        TTF_Text *fpsText = TTF_CreateText(gTextEngine, jetBrainsMono, fpsStr, 0);
+
+        drawGame(&player, &asteroids, &powerUps, fpsText); /* Draw, Blit and Render */
 
         frameEnd = SDL_GetPerformanceCounter();
         fps = (frameEnd - frameStart) / (float)SDL_GetPerformanceFrequency();
+      }
+    }
+  
+    else if (gameState == SCORES)
+    {
+      
+      char *jsonData = extractScores("scores.json");
+      
+      TTF_Text *texts[2] = {};
+
+      char tempText[] = "Enter Username to get Scores. Leave empty to get all.";
+      texts[0] = TTF_CreateText(gTextEngine, jetBrainsMono, tempText, 0);
+
+      char username[50] = {};
+      int nameCursor = 0;
+      bool textInput = true;
+      SDL_StartTextInput(gWindow);
+
+      SDL_Event e;
+      bool exited = false;
+
+      while (!exited)
+      {
+        while (SDL_PollEvent(&e) != 0)
+        {
+          if (e.type == SDL_EVENT_QUIT)
+          {
+            exited = true;
+            run = false;
+          }
+
+          else if (e.type == SDL_EVENT_TEXT_INPUT && nameCursor < sizeof(username) - 1)
+          {
+            SDL_strlcat(username, e.text.text, sizeof(username));
+            nameCursor = strlen(username);
+          }
+
+          else if (e.type == SDL_EVENT_KEY_DOWN && textInput)
+          {
+            if (e.key.key == SDLK_RETURN || e.key.key == SDLK_ESCAPE)
+            {
+              if (e.key.key == SDLK_ESCAPE)
+                strcpy(username, "");
+              SDL_StopTextInput(gWindow);
+              textInput = false;
+              texts[1] = TTF_CreateText(gTextEngine, jetBrainsMono, username, 0);
+              texts[0] = NULL;
+            }
+            else if (e.key.key == SDLK_BACKSPACE && nameCursor > 0)
+            {
+              nameCursor--;
+              username[nameCursor] = '\0';
+            }
+          }
+
+          else if (e.type == SDL_EVENT_KEY_DOWN && e.key.repeat == 0)
+          {
+            if (e.key.key == SDLK_ESCAPE)
+              gameState = MENU;
+          }
+        }
+        if (textInput)
+          texts[1] = TTF_CreateText(gTextEngine, jetBrainsMono, username, 0);
+          
+        if (gameState != SCORES)
+        {
+          break;
+        }
+
+        drawScores(NULL, texts);
       }
     }
   }
