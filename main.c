@@ -45,6 +45,13 @@ enum Size
   LARGE = 2
 };
 
+enum Sort
+{
+  SCORE = 0,
+  TIME = 1,
+  NAME = 2
+};
+
 enum State gameState = MENU;
 
 SDL_Window *gWindow = NULL;
@@ -982,7 +989,7 @@ void asteroidDestroy(Asteroid *asteroid, AsteroidList *asteroids)
   }
 }
 
-void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *player, Timer *spawnTimer, double delta)
+void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *player, Timer *spawnTimer, int *spawnCount, int spawnTime, double delta )
 {
   /* Asteroids - Bullet Collision Detector & Destroyer */
   AsteroidList *astPtr = asteroids->nextAsteroid;
@@ -1025,9 +1032,10 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
   }
 
   /* Asteroid Spawner */
-  if (spawnTimer->ticks > SDL_rand(3000) + 2000)
+  if (spawnTimer->ticks > SDL_rand(3000) + spawnTime)
   {
     asteroidSpawn(asteroids, NULL);
+    (*spawnCount)++;
     timerReset(spawnTimer); /* Reset Timer */
   }
 
@@ -1180,6 +1188,65 @@ bool saveScores(char *jsonData, char *fileName)
   }
 
   return success;
+}
+
+int compareScores(const void *a, const void *b)
+{
+  const cJSON *scoreA = *(const cJSON**)a;
+  const cJSON *scoreB = *(const cJSON**)b;
+
+  int score1 = cJSON_GetObjectItem(scoreA, "Score")->valueint;
+  int score2 = cJSON_GetObjectItem(scoreB, "Score")->valueint;
+
+  return score2 - score1;
+}
+
+int compareTime(const void *a, const void *b)
+{
+  const cJSON *scoreA = *(const cJSON**)a;
+  const cJSON *scoreB = *(const cJSON**)b;
+
+  int time1 = cJSON_GetObjectItem(scoreA, "Time")->valueint;
+  int time2 = cJSON_GetObjectItem(scoreB, "Time")->valueint;
+
+  return time2 - time1;
+}
+
+int compareName(const void *a, const void *b)
+{
+  const cJSON *scoreA = *(const cJSON**)a;
+  const cJSON *scoreB = *(const cJSON**)b;
+
+  const char *name1 = cJSON_GetObjectItem(scoreA, "Username")->valuestring;
+  const char *name2 = cJSON_GetObjectItem(scoreB, "Username")->valuestring;
+
+  return strncmp(name1, name2, 50);
+}
+
+void sortScores(cJSON *jsonData, enum Sort type)
+{
+  cJSON *scores = cJSON_GetObjectItem(jsonData, "Scores");
+  int count = cJSON_GetArraySize(scores);
+
+  if (count < 2) return;
+
+  cJSON **scoreList = malloc(count * sizeof(cJSON *));
+  for (int i = 0; i < count; i++)
+    scoreList[i] = cJSON_GetArrayItem(scores, i);
+  
+  if (type == SCORE)
+    qsort(scoreList, count, sizeof(cJSON*), compareScores);
+  else if (type == TIME)
+    qsort(scoreList, count, sizeof(cJSON*), compareTime);
+  else 
+    qsort(scoreList, count, sizeof(cJSON*), compareName);
+
+  cJSON *sortedScores = cJSON_CreateArray();
+  for (int i = 0; i < count; i++)
+    cJSON_AddItemToArray(sortedScores, cJSON_Duplicate(scoreList[i], 1));
+  
+  cJSON_ReplaceItemInObject(jsonData, "Scores", sortedScores);
+  free(scoreList);
 }
 
 bool init(void)
@@ -1427,7 +1494,7 @@ void drawScores(Button *buttons, TTF_Text **texts, ScoreObj *scores)
   SDL_RenderClear(gRenderer);
 
   SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-  if (texts[0] != NULL)
+  if (texts[3] != NULL)
   {
     int textHeight, textWidth;
     TTF_SetFontSize(jetBrainsMono, HEIGHT / 50);
@@ -1630,6 +1697,8 @@ int main(int argc, char *args[])
       AsteroidList asteroids = asteroidInit();
 
       Timer astSpawnTimer;
+      int astSpawnCount = 0;
+      int astSpawnTime = 5000;
       timerStart(&astSpawnTimer);
 
       PowerUpList powerUps = powerUpInit();
@@ -1661,7 +1730,10 @@ int main(int argc, char *args[])
         playerMovementHandler(&player, dTimer.delta);
         playerBulletHander(&player, dTimer.delta);
         playerPowerUpHandler(&player, &powerUps);
-        asteroidHandler(&asteroids, &powerUps, &player, &astSpawnTimer, dTimer.delta);
+        asteroidHandler(&asteroids, &powerUps, &player, &astSpawnTimer, &astSpawnCount, astSpawnTime, dTimer.delta);
+        if (astSpawnCount > 10 && astSpawnCount > 500)
+          astSpawnTime -= 100;
+
 
         if (player.armor < 0)
         {
@@ -1879,7 +1951,7 @@ int main(int argc, char *args[])
     {
       Button buttons[2];
 
-      buttons[0].text = TTF_CreateText(gTextEngine, jetBrainsMono, "Sort By", 0);
+      buttons[0].text = TTF_CreateText(gTextEngine, jetBrainsMono, "Sort By Score", 0);
       buttons[0].clicked = 0;
       buttons[0].hovered = 0;
       buttons[0].width = 200;
@@ -1890,6 +1962,8 @@ int main(int argc, char *args[])
       buttons[0].rect.h = buttons[0].height;
       buttons[0].rect.x = buttons[0].posX;
       buttons[0].rect.y = buttons[0].posY;
+      Timer buttonTimer = timerInit();
+      timerStart(&buttonTimer);
 
       buttons[1].text = TTF_CreateText(gTextEngine, jetBrainsMono, "Search", 0);
       buttons[1].clicked = 0;
@@ -1903,8 +1977,8 @@ int main(int argc, char *args[])
       buttons[1].rect.x = buttons[1].posX;
       buttons[1].rect.y = buttons[1].posY;
 
-      
       char *jsonData = extractScores("scores.json"); /* Grab Data */
+      enum Sort sortType = SCORE;
       cJSON *root = NULL;
       cJSON *scoreArr = NULL;
       if (jsonData == NULL) /* Doesn't Exist -> Create New */
@@ -1916,12 +1990,13 @@ int main(int argc, char *args[])
       else /* Exist -> Use Existing*/
       {
         root = cJSON_Parse(jsonData);
+        sortScores(root, sortType);
         scoreArr = cJSON_GetObjectItem(root, "Scores");
       }
 
       free(jsonData);
-      cJSON_free(root);
       
+      int arrSize = cJSON_GetArraySize(scoreArr);
       ScoreObj scores[8]; /* 8 Scores At A Time */
       int scoreCursor = 0;
       TTF_Text *texts[4] = {};
@@ -1929,11 +2004,11 @@ int main(int argc, char *args[])
       char tempText[] = "Enter Username to get Scores. Leave empty to get all.";
       texts[0] = TTF_CreateText(gTextEngine, jetBrainsMono, tempText, 0);
       texts[2] = TTF_CreateText(gTextEngine, jetBrainsMono, "Press Esc to go back to menu", 0);
+      texts[3] = NULL;
 
       char username[50] = {};
       int nameCursor = 0;
-      bool textInput = true;
-      SDL_StartTextInput(gWindow);
+      bool textInput = false;
 
       SDL_Event e;
       bool exited = false;
@@ -1963,7 +2038,7 @@ int main(int argc, char *args[])
               SDL_StopTextInput(gWindow);
               textInput = false;
               texts[1] = TTF_CreateText(gTextEngine, jetBrainsMono, username, 0);
-              texts[0] = NULL;
+              texts[3] = NULL;
             }
             else if (e.key.key == SDLK_BACKSPACE && nameCursor > 0)
             {
@@ -1980,7 +2055,8 @@ int main(int argc, char *args[])
         
           else if (e.type == SDL_EVENT_MOUSE_WHEEL && !textInput)
           {
-            scoreCursor -= (int) e.wheel.y;
+            if (!(scoreCursor - (int) e.wheel.y < 0) && !(scoreCursor - (int) e.wheel.y > arrSize - 8 /* Number of Scores on Screen*/))
+              scoreCursor -= (int) e.wheel.y;
           }
         }
         if (textInput)
@@ -1992,11 +2068,34 @@ int main(int argc, char *args[])
             buttonStateUpdater(&buttons[i]);
           }
 
-          //if (buttons[0].clicked) //SORT
-
+          if (buttons[0].clicked && buttonTimer.ticks > 200)
+          {
+            if (sortType == SCORE) /* Cycle through sort types */
+            {
+              sortType = TIME; 
+              buttons[0].text = TTF_CreateText(gTextEngine, jetBrainsMono, "Sort By Time", 0);
+            }
+            else if (sortType == TIME) 
+            {
+              sortType = NAME;
+              buttons[0].text = TTF_CreateText(gTextEngine, jetBrainsMono, "Sort By Name", 0);
+            }
+            else if (sortType == NAME) 
+            {
+              sortType = SCORE;
+              buttons[0].text = TTF_CreateText(gTextEngine, jetBrainsMono, "Sort By Score", 0);
+            }
+            sortScores(root, sortType);
+            scoreArr = cJSON_GetObjectItem(root, "Scores"); /* Regrab array */
+            timerReset(&buttonTimer);
+          }
 
           if (buttons[1].clicked)
-            break;
+          {
+            texts[3] = TTF_CreateText(gTextEngine, jetBrainsMono, "!", 0);
+            textInput = true;
+            SDL_StartTextInput(gWindow);
+          }
 
           if (username[0] == '\0')
           {
@@ -2067,6 +2166,7 @@ int main(int argc, char *args[])
           break;
         }
 
+        timerCalcTicks(&buttonTimer);
         drawScores(buttons, texts, scores);
       }
     }
