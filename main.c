@@ -57,8 +57,12 @@ enum State gameState = MENU;
 SDL_Window *gWindow = NULL;
 SDL_Renderer *gRenderer = NULL;
 
-TTF_Font *jetBrainsMono;
-TTF_TextEngine *gTextEngine;
+SDL_Texture *background = NULL;
+SDL_Texture *backgroundf1 = NULL;
+SDL_Texture *backgroundf2 = NULL;
+
+TTF_Font *kenVectorFont = NULL;
+TTF_TextEngine *gTextEngine = NULL;
 
 /* Timer Definitions */
 /* Struct */
@@ -715,7 +719,7 @@ void playerTextHandler(Player *player)
   /* Score */
   char *score;                                      /* Number of characters in "Score: 999" */
   SDL_asprintf(&score, "Score: %u", player->score); /* To join string with int */
-  player->scoreText = TTF_CreateText(gTextEngine, jetBrainsMono, score, 0);
+  player->scoreText = TTF_CreateText(gTextEngine, kenVectorFont, score, 0);
 }
 
 void playerRender(Player player)
@@ -1301,8 +1305,8 @@ bool init(void)
             }
             else
             {
-              jetBrainsMono = TTF_OpenFont("Assets/JetBrainsMono-Medium.ttf", HEIGHT / 50);
-              if (jetBrainsMono == NULL)
+              kenVectorFont = TTF_OpenFont("Assets/Fonts/kenvector_future_thin.ttf", HEIGHT / 50);
+              if (kenVectorFont == NULL)
               {
                 printf("'JetBrainsMono-Medium.ttf' could not be loaded! SDL_ttf Error: %s\n", SDL_GetError());
               }
@@ -1324,266 +1328,293 @@ bool load(Player *player) /* Get Game Objects and load their respective assets *
 {
   bool success = true;
 
-  player->icon = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Crystal.png"));
-  if (player->icon == NULL)
+  if (player != NULL)
   {
-    printf("'Crystal.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+    player->icon = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Crystal.png"));
+    if (player->icon == NULL)
+    {
+      printf("'Crystal.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+    }
+  }
+
+  backgroundf1 = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Menu/bd_space_seamless_fl1.png"));
+  if (backgroundf1 == NULL)
+  {
+    printf("'Assets/Menu/bd_space_seamless_fl1.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+    success = false;
+  }
+  backgroundf2 = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Menu/bg_space_seamless_fl2.png"));
+  if (backgroundf2 == NULL)
+  {
+    printf("'Assets/Menu/bg_space_seamless_fl2.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+    success = false;
   }
 
   return success;
 }
 
-void drawMenu(Button *buttons)
+void drawMenu(Button *buttons, float f1PosX, float f2PosX)
 {
   char buttonsText[3][10] = {"Play", "Scores", "Quit"};
-  SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
+  SDL_SetRenderDrawColor(gRenderer, 0x06, 0x12, 0x21, 0xFF);
   SDL_RenderClear(gRenderer);
 
-  for (uint8 i = 0; i < 3; i++) // Number of Buttons
-  {
-    TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
-    int textHeight, textWidth;
-    TTF_GetTextSize(buttonText, &textWidth, &textHeight);
-    if (buttons[i].hovered)
+  SDL_FRect tempRect = {f1PosX, 0.f, WIDTH, HEIGHT}; //Every Image has Same Dimension
+  SDL_RenderTexture(gRenderer, backgroundf1, NULL, &tempRect);
+  tempRect.x = f1PosX - WIDTH; 
+  SDL_RenderTexture(gRenderer, backgroundf1, NULL, &tempRect);
+  tempRect.x = f2PosX; 
+  SDL_RenderTexture(gRenderer, backgroundf2, NULL, &tempRect);
+  tempRect.x = f2PosX - WIDTH;
+  SDL_RenderTexture(gRenderer, backgroundf2, NULL, &tempRect);
+
+    for (uint8 i = 0; i < 3; i++) // Number of Buttons
     {
-      SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
-      TTF_SetTextColor(buttonText, 255, 255, 255, 255);
-    }
-    else
-    {
-      SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
-      TTF_SetTextColor(buttonText, 0, 0, 0, 255);
-    }
-
-    SDL_RenderFillRect(gRenderer, &buttons[i].rect);
-    TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
-                          buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
-  }
-
-  SDL_RenderPresent(gRenderer);
-}
-
-void drawGame(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, TTF_Text *fpsText)
-{
-  SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
-  SDL_RenderClear(gRenderer);
-
-  SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-  // SDL_RenderFillRect(gRenderer, &player.rect);
-
-  BulletList *bullPtr = &player->bullets;
-  while (bullPtr != NULL)
-  {
-    if (!SDL_HasRectIntersectionFloat(&player->rect, &bullPtr->bullet.rect) && bullPtr->bullet.damage != -1)
-    {
-      SDL_RenderRect(gRenderer, &bullPtr->bullet.rect); /* Render Bullets only when they're a bit away from you*/
-    }
-
-    bullPtr = bullPtr->nextBullet;
-  }
-
-  AsteroidList *astPtr = asteroids;
-  while (astPtr != NULL) /* Render Asteroids */
-  {
-    SDL_RenderFillRect(gRenderer, &astPtr->asteroid.rect);
-    astPtr = astPtr->nextAsteroid;
-  }
-
-  PowerUpList *powerPtr = powerUps;
-  while (powerPtr != NULL)
-  {
-    if (powerPtr->power.powerUp == SHIELD)
-    {
-      SDL_SetRenderDrawColor(gRenderer, 0, 0, 255, 255);
-    }
-    else if (powerPtr->power.powerUp == ARMOR)
-    {
-      SDL_SetRenderDrawColor(gRenderer, 255, 0, 0, 255);
-    }
-    else if (powerPtr->power.powerUp == INFFUEL)
-    {
-      SDL_SetRenderDrawColor(gRenderer, 255, 0, 255, 255);
-    }
-
-    SDL_RenderFillRect(gRenderer, &powerPtr->power.rect);
-
-    powerPtr = powerPtr->nextPowerUp;
-  }
-
-  TTF_DrawRendererText(fpsText, WIDTH - 70, HEIGHT - 20);
-
-  playerTextHandler(player);
-  playerRender(*player);
-
-  SDL_RenderPresent(gRenderer);
-}
-
-void drawPaused(Button *buttons)
-{
-  char buttonsText[2][10] = {"Resume", "Menu"};
-  SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0x77);
-  SDL_RenderFillRect(gRenderer, NULL);
-
-  for (uint8 i = 0; i < 2; i++) // Number of Buttons
-  {
-    TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
-    int textHeight, textWidth;
-    TTF_GetTextSize(buttonText, &textWidth, &textHeight);
-    if (buttons[i].hovered)
-    {
-      SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
-      TTF_SetTextColor(buttonText, 255, 255, 255, 255);
-    }
-    else
-    {
-      SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
-      TTF_SetTextColor(buttonText, 0, 0, 0, 255);
-    }
-
-    SDL_RenderFillRect(gRenderer, &buttons[i].rect);
-    TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
-                          buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
-  }
-
-  SDL_RenderPresent(gRenderer);
-}
-
-void drawOver(Button *buttons, TTF_Text **texts)
-{
-  SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
-  SDL_RenderClear(gRenderer);
-
-  SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-  int textHeight, textWidth;
-  TTF_GetTextSize(texts[0], &textWidth, &textHeight);
-  TTF_DrawRendererText(texts[0], WIDTH / 2 - textWidth / 2, HEIGHT / 4 - textHeight / 2);
-  TTF_GetTextSize(texts[1], &textWidth, &textHeight);
-  TTF_DrawRendererText(texts[1], WIDTH / 2 - textWidth / 2, 3 * HEIGHT / 4 - textHeight / 2);
-  TTF_SetFontSize(jetBrainsMono, HEIGHT / 50);
-  TTF_GetTextSize(texts[2], &textWidth, &textHeight);
-  TTF_DrawRendererText(texts[2], WIDTH / 2 - textWidth / 2, 7 * HEIGHT / 8 - textHeight / 2);
-  TTF_SetFontSize(jetBrainsMono, 3 * HEIGHT / 50);
-
-  char buttonsText[2][10] = {"Menu", "Replay"};
-  for (uint8 i = 0; i < 2; i++) // Number of Buttons
-  {
-    TTF_Text *buttonText = TTF_CreateText(gTextEngine, jetBrainsMono, buttonsText[i], strlen(buttonsText[i]));
-    TTF_GetTextSize(buttonText, &textWidth, &textHeight);
-    if (buttons[i].hovered)
-    {
-      SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
-      TTF_SetTextColor(buttonText, 255, 255, 255, 255);
-    }
-    else
-    {
-      SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
-      TTF_SetTextColor(buttonText, 0, 0, 0, 255);
-    }
-
-    SDL_RenderFillRect(gRenderer, &buttons[i].rect);
-    TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
-                          buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
-  }
-
-  SDL_RenderPresent(gRenderer);
-}
-
-void drawScores(Button *buttons, TTF_Text **texts, ScoreObj *scores)
-{
-  SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
-  SDL_RenderClear(gRenderer);
-
-  SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-  if (texts[3] != NULL)
-  {
-    int textHeight, textWidth;
-    TTF_SetFontSize(jetBrainsMono, HEIGHT / 50);
-    TTF_GetTextSize(texts[0], &textWidth, &textHeight);
-    TTF_DrawRendererText(texts[0], WIDTH / 2 - textWidth / 2, 3 *HEIGHT / 4 - textHeight / 2);
-    TTF_SetFontSize(jetBrainsMono, 3 * HEIGHT / 50);
-    TTF_GetTextSize(texts[1], &textWidth, &textHeight);
-    TTF_DrawRendererText(texts[1], WIDTH / 2 - textWidth / 2, 2 * HEIGHT / 4 - textHeight / 2);
-  }
-  else
-  {
-    TTF_SetFontSize(jetBrainsMono, HEIGHT/50);
-    for (uint8 i = 0; i < 2; i++) // Number of Buttons
-    {
+      TTF_Text *buttonText = TTF_CreateText(gTextEngine, kenVectorFont, buttonsText[i], strlen(buttonsText[i]));
       int textHeight, textWidth;
-      TTF_GetTextSize(buttons[i].text, &textWidth, &textHeight);
+      TTF_GetTextSize(buttonText, &textWidth, &textHeight);
       if (buttons[i].hovered)
       {
         SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
-        TTF_SetTextColor(buttons[i].text, 255, 255, 255, 255);
+        TTF_SetTextColor(buttonText, 255, 255, 255, 255);
       }
       else
       {
         SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
-        TTF_SetTextColor(buttons[i].text, 0, 0, 0, 255);
+        TTF_SetTextColor(buttonText, 0, 0, 0, 255);
       }
 
       SDL_RenderFillRect(gRenderer, &buttons[i].rect);
-      TTF_DrawRendererText(buttons[i].text, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
+      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
                             buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
     }
 
-    int textWidth, textHeight;
-    TTF_GetTextSize(texts[2], &textWidth, &textHeight);
-    TTF_DrawRendererText(texts[2], WIDTH/2 - textWidth/2, 50 - textHeight/2);
-    TTF_SetFontSize(jetBrainsMono, 3 * HEIGHT / 50);
-    
-    char *tempStr;
-    TTF_Text *tempText = NULL;
-    
-    SDL_asprintf(&tempStr, "Username");
-    tempText = TTF_CreateText(gTextEngine, jetBrainsMono, tempStr, 0);
-    TTF_GetTextSize(tempText, &textWidth, &textHeight);
-    TTF_DrawRendererText(tempText, 10, (2 * HEIGHT / 11) - (textHeight / 2));
-    SDL_asprintf(&tempStr, "Asteroids Destroyed");
-    tempText = TTF_CreateText(gTextEngine, jetBrainsMono, tempStr, 0);
-    TTF_GetTextSize(tempText, &textWidth, &textHeight);
-    TTF_DrawRendererText(tempText, WIDTH/2 - textWidth/2, (2 * HEIGHT / 11) - (textHeight / 2));
-    SDL_asprintf(&tempStr, "Time Survived");
-    tempText = TTF_CreateText(gTextEngine, jetBrainsMono, tempStr, 0);
-    TTF_GetTextSize(tempText, &textWidth, &textHeight);
-    TTF_DrawRendererText(tempText, WIDTH - (10 + textWidth), (2 * HEIGHT / 11) - (textHeight / 2));
-    
-    for (int i = 0; i < 8; i++)
-    {
-      if (scores[i].username[0] != '\0')
-      {
-        SDL_asprintf(&tempStr, scores[i].username);
-        tempText = TTF_CreateText(gTextEngine, jetBrainsMono, tempStr, 0);
-        TTF_GetTextSize(tempText, &textWidth, &textHeight);
-        TTF_DrawRendererText(tempText, 10, ((i + 3)* HEIGHT / 11) - (textHeight / 2));
-        SDL_asprintf(&tempStr, "%i", scores[i].score);
-        tempText = TTF_CreateText(gTextEngine, jetBrainsMono, tempStr, 0);
-        TTF_GetTextSize(tempText, &textWidth, &textHeight);
-        TTF_DrawRendererText(tempText, WIDTH/2 - textWidth/2, ((i + 3) * HEIGHT / 11) - (textHeight / 2));
-        SDL_asprintf(&tempStr, "%i", scores[i].time);
-        tempText = TTF_CreateText(gTextEngine, jetBrainsMono, tempStr, 0);
-        TTF_GetTextSize(tempText, &textWidth, &textHeight);
-        TTF_DrawRendererText(tempText, WIDTH - (10 + textWidth), ((i + 3) * HEIGHT / 11) - (textHeight / 2));
-      }
-    }
+    SDL_RenderPresent(gRenderer);
   }
 
+  void drawGame(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, TTF_Text *fpsText)
+  {
+    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
+    SDL_RenderClear(gRenderer);
 
-  SDL_RenderPresent(gRenderer);
-}
+    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+    // SDL_RenderFillRect(gRenderer, &player.rect);
 
-void quit(void)
-{
-  SDL_DestroyWindow(gWindow);
-  SDL_DestroyRenderer(gRenderer);
-  SDL_Quit();
-}
+    BulletList *bullPtr = &player->bullets;
+    while (bullPtr != NULL)
+    {
+      if (!SDL_HasRectIntersectionFloat(&player->rect, &bullPtr->bullet.rect) && bullPtr->bullet.damage != -1)
+      {
+        SDL_RenderRect(gRenderer, &bullPtr->bullet.rect); /* Render Bullets only when they're a bit away from you*/
+      }
+
+      bullPtr = bullPtr->nextBullet;
+    }
+
+    AsteroidList *astPtr = asteroids;
+    while (astPtr != NULL) /* Render Asteroids */
+    {
+      SDL_RenderFillRect(gRenderer, &astPtr->asteroid.rect);
+      astPtr = astPtr->nextAsteroid;
+    }
+
+    PowerUpList *powerPtr = powerUps;
+    while (powerPtr != NULL)
+    {
+      if (powerPtr->power.powerUp == SHIELD)
+      {
+        SDL_SetRenderDrawColor(gRenderer, 0, 0, 255, 255);
+      }
+      else if (powerPtr->power.powerUp == ARMOR)
+      {
+        SDL_SetRenderDrawColor(gRenderer, 255, 0, 0, 255);
+      }
+      else if (powerPtr->power.powerUp == INFFUEL)
+      {
+        SDL_SetRenderDrawColor(gRenderer, 255, 0, 255, 255);
+      }
+
+      SDL_RenderFillRect(gRenderer, &powerPtr->power.rect);
+
+      powerPtr = powerPtr->nextPowerUp;
+    }
+
+    TTF_DrawRendererText(fpsText, WIDTH - 70, HEIGHT - 20);
+
+    playerTextHandler(player);
+    playerRender(*player);
+
+    SDL_RenderPresent(gRenderer);
+  }
+
+  void drawPaused(Button *buttons)
+  {
+    char buttonsText[2][10] = {"Resume", "Menu"};
+    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0x77);
+    SDL_RenderFillRect(gRenderer, NULL);
+
+    for (uint8 i = 0; i < 2; i++) // Number of Buttons
+    {
+      TTF_Text *buttonText = TTF_CreateText(gTextEngine, kenVectorFont, buttonsText[i], strlen(buttonsText[i]));
+      int textHeight, textWidth;
+      TTF_GetTextSize(buttonText, &textWidth, &textHeight);
+      if (buttons[i].hovered)
+      {
+        SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
+        TTF_SetTextColor(buttonText, 255, 255, 255, 255);
+      }
+      else
+      {
+        SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
+        TTF_SetTextColor(buttonText, 0, 0, 0, 255);
+      }
+
+      SDL_RenderFillRect(gRenderer, &buttons[i].rect);
+      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
+                            buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
+    }
+
+    SDL_RenderPresent(gRenderer);
+  }
+
+  void drawOver(Button *buttons, TTF_Text **texts)
+  {
+    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
+    SDL_RenderClear(gRenderer);
+
+    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+    int textHeight, textWidth;
+    TTF_GetTextSize(texts[0], &textWidth, &textHeight);
+    TTF_DrawRendererText(texts[0], WIDTH / 2 - textWidth / 2, HEIGHT / 4 - textHeight / 2);
+    TTF_GetTextSize(texts[1], &textWidth, &textHeight);
+    TTF_DrawRendererText(texts[1], WIDTH / 2 - textWidth / 2, 3 * HEIGHT / 4 - textHeight / 2);
+    TTF_SetFontSize(kenVectorFont, HEIGHT / 50);
+    TTF_GetTextSize(texts[2], &textWidth, &textHeight);
+    TTF_DrawRendererText(texts[2], WIDTH / 2 - textWidth / 2, 7 * HEIGHT / 8 - textHeight / 2);
+    TTF_SetFontSize(kenVectorFont, 3 * HEIGHT / 50);
+
+    char buttonsText[2][10] = {"Menu", "Replay"};
+    for (uint8 i = 0; i < 2; i++) // Number of Buttons
+    {
+      TTF_Text *buttonText = TTF_CreateText(gTextEngine, kenVectorFont, buttonsText[i], strlen(buttonsText[i]));
+      TTF_GetTextSize(buttonText, &textWidth, &textHeight);
+      if (buttons[i].hovered)
+      {
+        SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
+        TTF_SetTextColor(buttonText, 255, 255, 255, 255);
+      }
+      else
+      {
+        SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
+        TTF_SetTextColor(buttonText, 0, 0, 0, 255);
+      }
+
+      SDL_RenderFillRect(gRenderer, &buttons[i].rect);
+      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
+                            buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
+    }
+
+    SDL_RenderPresent(gRenderer);
+  }
+
+  void drawScores(Button *buttons, TTF_Text **texts, ScoreObj *scores)
+  {
+    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
+    SDL_RenderClear(gRenderer);
+
+    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+    if (texts[3] != NULL)
+    {
+      int textHeight, textWidth;
+      TTF_SetFontSize(kenVectorFont, HEIGHT / 50);
+      TTF_GetTextSize(texts[0], &textWidth, &textHeight);
+      TTF_DrawRendererText(texts[0], WIDTH / 2 - textWidth / 2, 3 *HEIGHT / 4 - textHeight / 2);
+      TTF_SetFontSize(kenVectorFont, 3 * HEIGHT / 50);
+      TTF_GetTextSize(texts[1], &textWidth, &textHeight);
+      TTF_DrawRendererText(texts[1], WIDTH / 2 - textWidth / 2, 2 * HEIGHT / 4 - textHeight / 2);
+    }
+    else
+    {
+      TTF_SetFontSize(kenVectorFont, HEIGHT/50);
+      for (uint8 i = 0; i < 2; i++) // Number of Buttons
+      {
+        int textHeight, textWidth;
+        TTF_GetTextSize(buttons[i].text, &textWidth, &textHeight);
+        if (buttons[i].hovered)
+        {
+          SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
+          TTF_SetTextColor(buttons[i].text, 255, 255, 255, 255);
+        }
+        else
+        {
+          SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
+          TTF_SetTextColor(buttons[i].text, 0, 0, 0, 255);
+        }
+
+        SDL_RenderFillRect(gRenderer, &buttons[i].rect);
+        TTF_DrawRendererText(buttons[i].text, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
+                              buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
+      }
+
+      int textWidth, textHeight;
+      TTF_GetTextSize(texts[2], &textWidth, &textHeight);
+      TTF_DrawRendererText(texts[2], WIDTH/2 - textWidth/2, 50 - textHeight/2);
+      TTF_SetFontSize(kenVectorFont, 3 * HEIGHT / 50);
+      
+      char *tempStr;
+      TTF_Text *tempText = NULL;
+      
+      SDL_asprintf(&tempStr, "Username");
+      tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
+      TTF_GetTextSize(tempText, &textWidth, &textHeight);
+      TTF_DrawRendererText(tempText, 10, (2 * HEIGHT / 11) - (textHeight / 2));
+      SDL_asprintf(&tempStr, "Asteroids Destroyed");
+      tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
+      TTF_GetTextSize(tempText, &textWidth, &textHeight);
+      TTF_DrawRendererText(tempText, WIDTH/2 - textWidth/2, (2 * HEIGHT / 11) - (textHeight / 2));
+      SDL_asprintf(&tempStr, "Time Survived");
+      tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
+      TTF_GetTextSize(tempText, &textWidth, &textHeight);
+      TTF_DrawRendererText(tempText, WIDTH - (10 + textWidth), (2 * HEIGHT / 11) - (textHeight / 2));
+      
+      for (int i = 0; i < 8; i++)
+      {
+        if (scores[i].username[0] != '\0')
+        {
+          SDL_asprintf(&tempStr, scores[i].username);
+          tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
+          TTF_GetTextSize(tempText, &textWidth, &textHeight);
+          TTF_DrawRendererText(tempText, 10, ((i + 3)* HEIGHT / 11) - (textHeight / 2));
+          SDL_asprintf(&tempStr, "%i", scores[i].score);
+          tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
+          TTF_GetTextSize(tempText, &textWidth, &textHeight);
+          TTF_DrawRendererText(tempText, WIDTH/2 - textWidth/2, ((i + 3) * HEIGHT / 11) - (textHeight / 2));
+          SDL_asprintf(&tempStr, "%i", scores[i].time);
+          tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
+          TTF_GetTextSize(tempText, &textWidth, &textHeight);
+          TTF_DrawRendererText(tempText, WIDTH - (10 + textWidth), ((i + 3) * HEIGHT / 11) - (textHeight / 2));
+        }
+      }
+    }
+
+
+    SDL_RenderPresent(gRenderer);
+  }
+
+  void quit(void)
+  {
+    SDL_DestroyWindow(gWindow);
+    SDL_DestroyRenderer(gRenderer);
+    SDL_Quit();
+  }
 
 int main(int argc, char *args[])
 {
-  init(); /* Initialize */
+  bool run = false;
+  if (init()) /* Initialize */
+    if (load(NULL)) /* Load Assets */
+      run = true;
 
-  bool run = true;
   while (run)
   {
     if (gameState == MENU) /* Main Menu */
@@ -1631,6 +1662,11 @@ int main(int argc, char *args[])
       buttons[1] = scoreButton;
       buttons[2] = quitButton;
 
+      float f1PosX = 0;
+      float f1Speed = 10;
+      float f2PosX = 0;
+      float f2Speed = 8;
+
       SDL_Event e;
       bool exited = false;
 
@@ -1671,7 +1707,12 @@ int main(int argc, char *args[])
           break;
         }
 
-        drawMenu(buttons);
+        f1PosX += f1Speed;
+        if (f1PosX > WIDTH) f1PosX = 0;
+        f2PosX += f2Speed;
+        if (f2PosX > WIDTH) f2PosX = 0;
+
+        drawMenu(buttons, f1PosX, f2PosX);
       }
     }
 
@@ -1742,13 +1783,13 @@ int main(int argc, char *args[])
 
         if (gameState == OVER)
         {
-          TTF_SetFontSize(jetBrainsMono, 3 * HEIGHT / 50);
+          TTF_SetFontSize(kenVectorFont, 3 * HEIGHT / 50);
           char *tempText;
           SDL_asprintf(&tempText, "You destroyed %li asteroids \nin %i minutes and %i seconds", player.score, (player.gameTimer.ticks / 1000) / 60, (player.gameTimer.ticks / 1000) % 60);
           TTF_Text *texts[3] = {};
-          texts[0] = TTF_CreateText(gTextEngine, jetBrainsMono, tempText, 0);
+          texts[0] = TTF_CreateText(gTextEngine, kenVectorFont, tempText, 0);
           tempText = "Type the username. Press Escape to not save the score. Press Enter to save the score.\n(Empty Username won't be stored!)";
-          texts[2] = TTF_CreateText(gTextEngine, jetBrainsMono, tempText, 0);
+          texts[2] = TTF_CreateText(gTextEngine, kenVectorFont, tempText, 0);
 
           Button buttons[2];
 
@@ -1819,7 +1860,7 @@ int main(int argc, char *args[])
                 }
               }
             }
-            texts[1] = TTF_CreateText(gTextEngine, jetBrainsMono, playerName, 0);
+            texts[1] = TTF_CreateText(gTextEngine, kenVectorFont, playerName, 0);
 
             for (int i = 0; i < 2; i++)
             {
@@ -1844,7 +1885,7 @@ int main(int argc, char *args[])
                 saveScores(jsonData, "scores.json");
               }
               
-              TTF_SetFontSize(jetBrainsMono, HEIGHT / 50);
+              TTF_SetFontSize(kenVectorFont, HEIGHT / 50);
               break;
             }
 
@@ -1938,7 +1979,7 @@ int main(int argc, char *args[])
 
         char *fpsStr;
         SDL_asprintf(&fpsStr, "%f", 1 / fps);
-        TTF_Text *fpsText = TTF_CreateText(gTextEngine, jetBrainsMono, fpsStr, 0);
+        TTF_Text *fpsText = TTF_CreateText(gTextEngine, kenVectorFont, fpsStr, 0);
 
         drawGame(&player, &asteroids, &powerUps, fpsText); /* Draw, Blit and Render */
 
@@ -1951,7 +1992,7 @@ int main(int argc, char *args[])
     {
       Button buttons[2];
 
-      buttons[0].text = TTF_CreateText(gTextEngine, jetBrainsMono, "Sort By Score", 0);
+      buttons[0].text = TTF_CreateText(gTextEngine, kenVectorFont, "Sort By Score", 0);
       buttons[0].clicked = 0;
       buttons[0].hovered = 0;
       buttons[0].width = 200;
@@ -1965,7 +2006,7 @@ int main(int argc, char *args[])
       Timer buttonTimer = timerInit();
       timerStart(&buttonTimer);
 
-      buttons[1].text = TTF_CreateText(gTextEngine, jetBrainsMono, "Search", 0);
+      buttons[1].text = TTF_CreateText(gTextEngine, kenVectorFont, "Search", 0);
       buttons[1].clicked = 0;
       buttons[1].hovered = 0;
       buttons[1].width = 200;
@@ -2002,8 +2043,8 @@ int main(int argc, char *args[])
       TTF_Text *texts[4] = {};
 
       char tempText[] = "Enter Username to get Scores. Leave empty to get all.";
-      texts[0] = TTF_CreateText(gTextEngine, jetBrainsMono, tempText, 0);
-      texts[2] = TTF_CreateText(gTextEngine, jetBrainsMono, "Press Esc to go back to menu", 0);
+      texts[0] = TTF_CreateText(gTextEngine, kenVectorFont, tempText, 0);
+      texts[2] = TTF_CreateText(gTextEngine, kenVectorFont, "Press Esc to go back to menu", 0);
       texts[3] = NULL;
 
       char username[50] = {};
@@ -2037,7 +2078,7 @@ int main(int argc, char *args[])
                 strcpy(username, "");
               SDL_StopTextInput(gWindow);
               textInput = false;
-              texts[1] = TTF_CreateText(gTextEngine, jetBrainsMono, username, 0);
+              texts[1] = TTF_CreateText(gTextEngine, kenVectorFont, username, 0);
               texts[3] = NULL;
             }
             else if (e.key.key == SDLK_BACKSPACE && nameCursor > 0)
@@ -2060,7 +2101,7 @@ int main(int argc, char *args[])
           }
         }
         if (textInput)
-          texts[1] = TTF_CreateText(gTextEngine, jetBrainsMono, username, 0);
+          texts[1] = TTF_CreateText(gTextEngine, kenVectorFont, username, 0);
         else
         {
           for (int i = 0; i < 2; i++)
@@ -2073,17 +2114,17 @@ int main(int argc, char *args[])
             if (sortType == SCORE) /* Cycle through sort types */
             {
               sortType = TIME; 
-              buttons[0].text = TTF_CreateText(gTextEngine, jetBrainsMono, "Sort By Time", 0);
+              buttons[0].text = TTF_CreateText(gTextEngine, kenVectorFont, "Sort By Time", 0);
             }
             else if (sortType == TIME) 
             {
               sortType = NAME;
-              buttons[0].text = TTF_CreateText(gTextEngine, jetBrainsMono, "Sort By Name", 0);
+              buttons[0].text = TTF_CreateText(gTextEngine, kenVectorFont, "Sort By Name", 0);
             }
             else if (sortType == NAME) 
             {
               sortType = SCORE;
-              buttons[0].text = TTF_CreateText(gTextEngine, jetBrainsMono, "Sort By Score", 0);
+              buttons[0].text = TTF_CreateText(gTextEngine, kenVectorFont, "Sort By Score", 0);
             }
             sortScores(root, sortType);
             scoreArr = cJSON_GetObjectItem(root, "Scores"); /* Regrab array */
@@ -2092,7 +2133,7 @@ int main(int argc, char *args[])
 
           if (buttons[1].clicked)
           {
-            texts[3] = TTF_CreateText(gTextEngine, jetBrainsMono, "!", 0);
+            texts[3] = TTF_CreateText(gTextEngine, kenVectorFont, "!", 0);
             textInput = true;
             SDL_StartTextInput(gWindow);
           }
@@ -2162,7 +2203,7 @@ int main(int argc, char *args[])
 
         if (gameState != SCORES)
         {
-          TTF_SetFontSize(jetBrainsMono, HEIGHT/50);
+          TTF_SetFontSize(kenVectorFont, HEIGHT/50);
           break;
         }
 
