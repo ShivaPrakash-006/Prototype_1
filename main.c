@@ -17,7 +17,7 @@
 #define uint64 unsigned long
 
 #define PRINTERROR printf("%s", SDL_GetError());
-
+#define PRINTIMGERROR(PATH) printf("'%s' could not be loaded. SDL_image Error: %s", PATH, SDL_GetError());
 #define PI 3.14159265359
 #define WIDTH 1280
 #define HEIGHT 720
@@ -57,9 +57,12 @@ enum State gameState = MENU;
 SDL_Window *gWindow = NULL;
 SDL_Renderer *gRenderer = NULL;
 
-SDL_Texture *background = NULL;
-SDL_Texture *backgroundf1 = NULL;
-SDL_Texture *backgroundf2 = NULL;
+SDL_Texture *menuBack1 = NULL;
+SDL_Texture *menuBack2 = NULL;
+SDL_Texture *scoreBack = NULL;
+SDL_Texture *gameBack = NULL;
+SDL_Texture *pauseBack = NULL;
+SDL_Texture *overBack = NULL;
 
 TTF_Font *kenVectorFont = NULL;
 TTF_TextEngine *gTextEngine = NULL;
@@ -1337,16 +1340,44 @@ bool load(Player *player) /* Get Game Objects and load their respective assets *
     }
   }
 
-  backgroundf1 = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Menu/bd_space_seamless_fl1.png"));
-  if (backgroundf1 == NULL)
+  menuBack1 = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Backgrounds/menu1.png"));
+  if (menuBack1 == NULL)
   {
-    printf("'Assets/Menu/bd_space_seamless_fl1.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+    printf("'Assets/Backgrounds/menu1.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
     success = false;
   }
-  backgroundf2 = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Menu/bg_space_seamless_fl2.png"));
-  if (backgroundf2 == NULL)
+  menuBack2 = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Backgrounds/menu2.png"));
+  if (menuBack2 == NULL)
   {
-    printf("'Assets/Menu/bg_space_seamless_fl2.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+    printf("'Assets/Backgrounds/menu2.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+    success = false;
+  }
+
+  scoreBack = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Backgrounds/scores.png"));
+  if (scoreBack == NULL)
+  {
+    printf("'Assets/Backgrounds/scores.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+    success = false;
+  }
+
+  gameBack = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Backgrounds/game.png"));
+  if (gameBack == NULL)
+  {
+    printf("'Assets/Backgrounds/game.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+    success = false;
+  }
+
+  pauseBack = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Backgrounds/paused.png"));
+  if (pauseBack == NULL)
+  {
+    printf("'Assets/Backgrounds/paused.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+    success = false;
+  }
+
+  overBack = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Backgrounds/over.png"));
+  if (overBack == NULL)
+  {
+    printf("'Assets/Backgrounds/over.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
     success = false;
   }
 
@@ -1360,13 +1391,13 @@ void drawMenu(Button *buttons, float f1PosX, float f2PosX)
   SDL_RenderClear(gRenderer);
 
   SDL_FRect tempRect = {f1PosX, 0.f, WIDTH, HEIGHT}; //Every Image has Same Dimension
-  SDL_RenderTexture(gRenderer, backgroundf1, NULL, &tempRect);
+  SDL_RenderTexture(gRenderer, menuBack1, NULL, &tempRect);
   tempRect.x = f1PosX - WIDTH; 
-  SDL_RenderTexture(gRenderer, backgroundf1, NULL, &tempRect);
+  SDL_RenderTexture(gRenderer, menuBack1, NULL, &tempRect);
   tempRect.x = f2PosX; 
-  SDL_RenderTexture(gRenderer, backgroundf2, NULL, &tempRect);
+  SDL_RenderTexture(gRenderer, menuBack2, NULL, &tempRect);
   tempRect.x = f2PosX - WIDTH;
-  SDL_RenderTexture(gRenderer, backgroundf2, NULL, &tempRect);
+  SDL_RenderTexture(gRenderer, menuBack2, NULL, &tempRect);
 
     for (uint8 i = 0; i < 3; i++) // Number of Buttons
     {
@@ -1397,8 +1428,19 @@ void drawMenu(Button *buttons, float f1PosX, float f2PosX)
     SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
     SDL_RenderClear(gRenderer);
 
+    
+    float backWidth, backHeight;
+    SDL_GetTextureSize(scoreBack, &backWidth, &backHeight);
+    SDL_FRect backRect = {0, 0, backWidth, backHeight};
+    for (int i = 0; i < WIDTH; i+= backWidth)
+      for (int j = 0; j < HEIGHT; j+= backHeight)
+      {
+        backRect.x = i;
+        backRect.y = j;
+        SDL_RenderTexture(gRenderer, gameBack, NULL, &backRect);
+      }
+
     SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    // SDL_RenderFillRect(gRenderer, &player.rect);
 
     BulletList *bullPtr = &player->bullets;
     while (bullPtr != NULL)
@@ -1452,6 +1494,17 @@ void drawMenu(Button *buttons, float f1PosX, float f2PosX)
     char buttonsText[2][10] = {"Resume", "Menu"};
     SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0x77);
     SDL_RenderFillRect(gRenderer, NULL);
+    
+    float backWidth, backHeight;
+    SDL_GetTextureSize(scoreBack, &backWidth, &backHeight);
+    SDL_FRect backRect = {0, 0, backWidth, backHeight};
+    for (int i = 0; i < WIDTH; i+= backWidth)
+      for (int j = 0; j < HEIGHT; j+= backHeight)
+      {
+        backRect.x = i;
+        backRect.y = j;
+        SDL_RenderTexture(gRenderer, pauseBack, NULL, &backRect);
+      }
 
     for (uint8 i = 0; i < 2; i++) // Number of Buttons
     {
@@ -1481,6 +1534,18 @@ void drawMenu(Button *buttons, float f1PosX, float f2PosX)
   {
     SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
     SDL_RenderClear(gRenderer);
+
+
+    float backWidth, backHeight;
+    SDL_GetTextureSize(scoreBack, &backWidth, &backHeight);
+    SDL_FRect backRect = {0, 0, backWidth, backHeight};
+    for (int i = 0; i < WIDTH; i+= backWidth)
+      for (int j = 0; j < HEIGHT; j+= backHeight)
+      {
+        backRect.x = i;
+        backRect.y = j;
+        SDL_RenderTexture(gRenderer, overBack, NULL, &backRect);
+      }
 
     SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
     int textHeight, textWidth;
@@ -1521,6 +1586,17 @@ void drawMenu(Button *buttons, float f1PosX, float f2PosX)
   {
     SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
     SDL_RenderClear(gRenderer);
+
+    float backWidth, backHeight;
+    SDL_GetTextureSize(scoreBack, &backWidth, &backHeight);
+    SDL_FRect backRect = {0, 0, backWidth, backHeight};
+    for (int i = 0; i < WIDTH; i+= backWidth)
+      for (int j = 0; j < HEIGHT; j+= backHeight)
+      {
+        backRect.x = i;
+        backRect.y = j;
+        SDL_RenderTexture(gRenderer, scoreBack, NULL, &backRect);
+      }
 
     SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
     if (texts[3] != NULL)
