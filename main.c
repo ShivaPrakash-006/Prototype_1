@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <string.h>
 #include "deps/cJSON.h"
+#include <libxml/parser.h>
+#include <libxml/tree.h>
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
@@ -21,6 +23,7 @@
 #define PI 3.14159265359
 #define WIDTH 1280
 #define HEIGHT 720
+#define SPRITEMAX 77
 
 enum State
 { /* Possible Game States */
@@ -64,8 +67,20 @@ SDL_Texture *gameBack = NULL;
 SDL_Texture *pauseBack = NULL;
 SDL_Texture *overBack = NULL;
 
+SDL_Texture *spriteSheet = NULL;
+
 TTF_Font *kenVectorFont = NULL;
 TTF_TextEngine *gTextEngine = NULL;
+
+/* Sprtie Definitions */
+/* Struct */
+typedef struct Sprite
+{
+  char name[50];
+  int width, height, x, y;
+} Sprite;
+
+Sprite spriteList[SPRITEMAX] = {};
 
 /* Timer Definitions */
 /* Struct */
@@ -1256,6 +1271,53 @@ void sortScores(cJSON *jsonData, enum Sort type)
   free(scoreList);
 }
 
+bool parseXML(const char* fileName)
+{
+  bool success = false;
+  xmlDoc *spriteXML = xmlReadFile(fileName, NULL, 0);
+  if (spriteXML == NULL)
+  {
+    printf("'%s' could not be loaded!\n", fileName);
+    success = false;
+  }
+
+  xmlNode *root = xmlDocGetRootElement(spriteXML);
+  xmlNode *curNode = root->children;
+  int spriteNum = 0;
+
+  while (curNode != NULL)
+  {
+    if (curNode->type == XML_ELEMENT_NODE)
+    {
+      Sprite *sprite = &spriteList[spriteNum];
+      
+      xmlChar *name = xmlGetProp(curNode, (const xmlChar*)"name");
+      xmlChar *x = xmlGetProp(curNode, (const xmlChar*)"x");
+      xmlChar *y = xmlGetProp(curNode, (const xmlChar*)"y");
+      xmlChar *width = xmlGetProp(curNode, (const xmlChar*)"width");
+      xmlChar *height = xmlGetProp(curNode, (const xmlChar*)"height");
+
+      snprintf(sprite->name, sizeof(sprite->name), "%s", name);
+      sprite->x = atoi((char*) x);
+      sprite->y = atoi((char*) y);
+      sprite->width = atoi((char*) width);
+      sprite->height = atoi((char*) height);
+    
+      xmlFree(name);
+      xmlFree(x);
+      xmlFree(y);
+      xmlFree(width);
+      xmlFree(height); 
+
+      spriteNum++;
+    }
+    curNode = curNode->next;
+  }
+  xmlFreeDoc(spriteXML);
+
+  return success;
+}
+
 bool init(void)
 {
   printf("=== Start Of Program ===\n");
@@ -1380,6 +1442,15 @@ bool load(Player *player) /* Get Game Objects and load their respective assets *
     printf("'Assets/Backgrounds/over.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
     success = false;
   }
+
+  spriteSheet = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/sheet.png"));
+  if (spriteSheet == NULL)
+  {
+    printf("'Assets/sheet.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+    success = false;
+  }
+
+  parseXML("Assets/sheet.xml");
 
   return success;
 }
