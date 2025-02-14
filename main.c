@@ -80,6 +80,23 @@ typedef struct Sprite
   int width, height, x, y;
 } Sprite;
 
+SDL_FRect getSpriteRect(Sprite *spriteList, const char* spriteName)
+{ 
+  SDL_FRect spriteRect = {0, 0, 0, 0};
+  
+  for (int i = 0; i < SPRITEMAX; i++)
+    if (strncmp(spriteList[i].name, spriteName, 50) == 0)
+    {
+      spriteRect.x = spriteList[i].x;
+      spriteRect.y = spriteList[i].y;
+      spriteRect.w = spriteList[i].width;
+      spriteRect.h = spriteList[i].height;
+      break;
+    }
+
+  return spriteRect;
+}
+
 Sprite spriteList[SPRITEMAX] = {};
 
 /* Timer Definitions */
@@ -189,6 +206,7 @@ typedef struct Bullet
 
   float posX;
   float posY;
+  float rot;
 
   int damage; /* 1 */
 
@@ -198,6 +216,7 @@ typedef struct Bullet
   float velY;
 
   SDL_FRect rect;
+  SDL_FPoint center;
   uint32 bulletNum;
 
   uint32 lifeTime;
@@ -437,21 +456,21 @@ void playerShoot(Player *player, int num)
 
   /* Initialization of bullet */
   bullet.width = 10;
-  bullet.height = 10;
+  bullet.height = 40;
 
   bullet.damage = 1;
   bullet.speed = 1000;
 
   if (num == 1)
   {
-    bullet.velX = SDL_sinf((player->rot + 10) * PI / 180);
-    bullet.velY = -SDL_cosf((player->rot + 10) * PI / 180);
+    bullet.rot = player->rot + 10;
   }
   else
   {
-    bullet.velX = SDL_sinf((player->rot - 10) * PI / 180);
-    bullet.velY = -SDL_cosf((player->rot - 10) * PI / 180);
+    bullet.rot = player->rot - 10;
   }
+  bullet.velX = SDL_sinf(bullet.rot * PI / 180);
+  bullet.velY = -SDL_cosf(bullet.rot * PI / 180);
 
   bullet.posX = player->posX + player->width / 2 - bullet.width / 2;   /* Center of X */
   bullet.posY = player->posY + player->height / 2 - bullet.height / 2; /* Center of Y */
@@ -460,6 +479,10 @@ void playerShoot(Player *player, int num)
   bullet.rect.h = bullet.height;
   bullet.rect.x = bullet.posX;
   bullet.rect.y = bullet.posY;
+
+  bullet.rot = player->rot;
+  bullet.center.x = bullet.rect.w;
+  bullet.center.y = 0;
 
   bullet.lifeTimer = timerInit();
   bullet.lifeTime = 1500; /* 1.5 secs */
@@ -743,12 +766,8 @@ void playerTextHandler(Player *player)
 void playerRender(Player player)
 {
   /* Player Render */
-  SDL_FRect destRect; /* Creating destination rect to render player*/
-  destRect.x = player.rect.x;
-  destRect.y = player.rect.y;
-  destRect.w = 50;
-  destRect.h = 50;
-  SDL_RenderTextureRotated(gRenderer, player.icon, NULL, &destRect, player.rot, NULL, SDL_FLIP_NONE);
+  SDL_FRect spriteRect = getSpriteRect(spriteList, "playerShip2_blue.png");
+  SDL_RenderTextureRotated(gRenderer, spriteSheet, &spriteRect, &player.rect, player.rot, NULL, SDL_FLIP_NONE);
 
   /* Render Stats */
   /* Score */
@@ -788,12 +807,14 @@ void playerDestroy(Player *player)
 typedef struct Asteroid
 {
   enum Size size;
+  int color;
 
   short width;  /* 20 */
   short height; /* 20 */
 
   float posX;
   float posY;
+  float rot;
 
   float velX;
   float velY;
@@ -804,6 +825,7 @@ typedef struct Asteroid
   uint32 astNum;
 
   SDL_FRect rect;
+  SDL_FRect spriteRect;
 } Asteroid;
 
 typedef struct AsteroidList
@@ -876,30 +898,41 @@ void asteroidSpawn(AsteroidList *asteroids, Asteroid *refAsteroid)
   if (refAsteroid == NULL) /* Normal Spawn */
   {
     asteroid.size = (enum Size)SDL_rand(3);
+    asteroid.color  = SDL_rand(2);
   }
   else /* Spawn Based On Destroyed Asteroid */
   {
     asteroid.size = refAsteroid->size - 1;
+    asteroid.color = refAsteroid->color;
   }
-
+  char *spriteName = NULL;
+  char color[2][6] = {"Brown", "Grey"};
   if (asteroid.size == SMALL)
   {
+    SDL_asprintf(&spriteName, "meteor%s_tiny%i.png", color[asteroid.color], SDL_rand(2)+1);
     asteroid.width = 30;
     asteroid.height = 30;
     asteroid.speed = SDL_rand(100) + 300;
+    asteroid.rotVel = SDL_rand(40) - 20;
   }
   else if (asteroid.size == NORMAL)
   {
+    SDL_asprintf(&spriteName, "meteor%s_med%i.png", color[asteroid.color], SDL_rand(2)+1);
     asteroid.width = 80;
     asteroid.height = 80;
     asteroid.speed = SDL_rand(100) + 200;
+    asteroid.rotVel = SDL_rand(20) - 10;
   }
   else
   {
+    SDL_asprintf(&spriteName, "meteor%s_big%i.png", color[asteroid.color], SDL_rand(4)+1);
     asteroid.width = 200;
     asteroid.height = 200;
     asteroid.speed = SDL_rand(100) + 100;
+    asteroid.rotVel = SDL_rand(10) - 5;
   }
+
+  asteroid.spriteRect = getSpriteRect(spriteList, spriteName);
 
   switch (SDL_rand(4))
   {
@@ -953,6 +986,7 @@ void asteroidSpawn(AsteroidList *asteroids, Asteroid *refAsteroid)
     asteroid.posY = refAsteroid->posY + SDL_rand(refAsteroid->height);
   }
 
+  asteroid.rot = SDL_rand(360);
   asteroid.rect.x = asteroid.posX;
   asteroid.rect.y = asteroid.posY;
   asteroid.rect.w = asteroid.width;
@@ -1067,6 +1101,15 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
   {
     astPtr->asteroid.posX += astPtr->asteroid.velX * astPtr->asteroid.speed * delta;
     astPtr->asteroid.posY += astPtr->asteroid.velY * astPtr->asteroid.speed * delta;
+    astPtr->asteroid.rot += astPtr->asteroid.rotVel;
+    if (astPtr->asteroid.rot < 0)
+    {
+      astPtr->asteroid.rot = 360 + astPtr->asteroid.rot;
+    }
+    else if (astPtr->asteroid.rot > 360)
+    {
+      astPtr->asteroid.rot = astPtr->asteroid.rot - 360;
+    }
 
     /* Screen Looping */
     if (astPtr->asteroid.posX + astPtr->asteroid.width < 0)
@@ -1494,7 +1537,7 @@ void drawMenu(Button *buttons, float f1PosX, float f2PosX)
     SDL_RenderPresent(gRenderer);
   }
 
-  void drawGame(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, TTF_Text *fpsText)
+void drawGame(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, TTF_Text *fpsText)
   {
     SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
     SDL_RenderClear(gRenderer);
@@ -1513,12 +1556,13 @@ void drawMenu(Button *buttons, float f1PosX, float f2PosX)
 
     SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
 
+    SDL_FRect bulletSpriteRect = getSpriteRect(spriteList, "laserRed16.png");
     BulletList *bullPtr = &player->bullets;
     while (bullPtr != NULL)
     {
       if (!SDL_HasRectIntersectionFloat(&player->rect, &bullPtr->bullet.rect) && bullPtr->bullet.damage != -1)
       {
-        SDL_RenderRect(gRenderer, &bullPtr->bullet.rect); /* Render Bullets only when they're a bit away from you*/
+        SDL_RenderTextureRotated(gRenderer, spriteSheet, &bulletSpriteRect, &bullPtr->bullet.rect, bullPtr->bullet.rot, &bullPtr->bullet.center, SDL_FLIP_NONE);
       }
 
       bullPtr = bullPtr->nextBullet;
@@ -1527,7 +1571,7 @@ void drawMenu(Button *buttons, float f1PosX, float f2PosX)
     AsteroidList *astPtr = asteroids;
     while (astPtr != NULL) /* Render Asteroids */
     {
-      SDL_RenderFillRect(gRenderer, &astPtr->asteroid.rect);
+      SDL_RenderTextureRotated(gRenderer, spriteSheet, &astPtr->asteroid.spriteRect, &astPtr->asteroid.rect, astPtr->asteroid.rot, NULL, SDL_FLIP_NONE);
       astPtr = astPtr->nextAsteroid;
     }
 
@@ -1560,7 +1604,7 @@ void drawMenu(Button *buttons, float f1PosX, float f2PosX)
     SDL_RenderPresent(gRenderer);
   }
 
-  void drawPaused(Button *buttons)
+void drawPaused(Button *buttons)
   {
     char buttonsText[2][10] = {"Resume", "Menu"};
     SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0x77);
@@ -1601,7 +1645,7 @@ void drawMenu(Button *buttons, float f1PosX, float f2PosX)
     SDL_RenderPresent(gRenderer);
   }
 
-  void drawOver(Button *buttons, TTF_Text **texts)
+void drawOver(Button *buttons, TTF_Text **texts)
   {
     SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
     SDL_RenderClear(gRenderer);
@@ -1653,7 +1697,7 @@ void drawMenu(Button *buttons, float f1PosX, float f2PosX)
     SDL_RenderPresent(gRenderer);
   }
 
-  void drawScores(Button *buttons, TTF_Text **texts, ScoreObj *scores)
+void drawScores(Button *buttons, TTF_Text **texts, ScoreObj *scores)
   {
     SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
     SDL_RenderClear(gRenderer);
