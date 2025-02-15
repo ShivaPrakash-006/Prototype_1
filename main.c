@@ -366,6 +366,10 @@ typedef struct Player
 
   Timer shieldTimer;
   uint32 shieldTime;
+
+  Timer shieldBlinker;
+  bool shieldBlink;
+
   Timer infFuelTimer;
   uint32 infFuelTime;
 
@@ -427,9 +431,11 @@ void playerInit(Player *player)
   player->bullets.nextBullet = NULL;
 
   /* PowerUps */
-  player->shield = false;
+  player->shield = true;
   player->shieldTime = 5000;
   player->shieldTimer = timerInit();
+  player->shieldBlinker = timerInit();
+  player->shieldBlink = false;
   player->repair = false;
   player->infFuel = false;
   player->infFuelTime = 5000;
@@ -634,9 +640,11 @@ void playerEventHandler(SDL_Event e, Player *player)
 
     case SDLK_J:
       player->afterburning = false;
+      break;
 
     case SDLK_K:
       player->shooting = false;
+      break;
 
     default:
       break;
@@ -730,9 +738,20 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
     timerStart(&player->shieldTimer);
     player->shield = false;
   }
+  if (player->shieldTimer.started && player->shieldTimer.ticks > player->shieldTime - 1000 && !player->shieldBlinker.started)
+  {
+    timerStart(&player->shieldBlinker);
+  }
+  if (player->shieldTimer.started && player->shieldBlinker.started && player->shieldBlinker.ticks > 200)
+  {
+    player->shieldBlink = !player->shieldBlink;
+    timerReset(&player->shieldBlinker);
+  }
   if (player->shieldTimer.started && player->shieldTimer.ticks > player->shieldTime)
   {
     timerStop(&player->shieldTimer);
+    timerStop(&player->shieldBlinker);
+    player->shieldBlink = false;
   }
 
   if (player->repair)
@@ -752,6 +771,7 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
   }
 
   timerCalcTicks(&player->shieldTimer);
+  timerCalcTicks(&player->shieldBlinker);
   timerCalcTicks(&player->infFuelTimer);
 }
 
@@ -774,18 +794,23 @@ void playerRender(Player player)
   TTF_DrawRendererText(player.scoreText, WIDTH - strlen(player.scoreText->text) * 10, 10);
 
   /* PowerUps */
-  SDL_FRect ShieldRect = {20, 20, 10, 10};
-  SDL_FRect InfFuelRect = {60, 20, 10, 10};
+  SDL_FRect shieldSpriteRect = getSpriteRect(spriteList, "shield3.png");
+  SDL_FRect shieldRect = shieldSpriteRect;
+  shieldRect.x = player.posX + player.width/2 - shieldRect.w/2; 
+  shieldRect.y = player.posY + player.height/2 - shieldRect.h/2; 
+  SDL_FRect infFuelRect = {60, 20, 10, 10};
 
   if (player.shieldTimer.started)
   {
-    SDL_SetRenderDrawColor(gRenderer, 0, 0, 255, 255);
-    SDL_RenderFillRect(gRenderer, &ShieldRect);
+    if (player.shieldBlinker.started && !player.shieldBlink) 
+      SDL_RenderTextureRotated(gRenderer, spriteSheet, &shieldSpriteRect, &shieldRect, player.rot, NULL, SDL_FLIP_NONE);
+    else if (!player.shieldBlinker.started)
+      SDL_RenderTextureRotated(gRenderer, spriteSheet, &shieldSpriteRect, &shieldRect, player.rot, NULL, SDL_FLIP_NONE);
   }
   if (player.infFuelTimer.started)
   {
     SDL_SetRenderDrawColor(gRenderer, 255, 0, 255, 255);
-    SDL_RenderFillRect(gRenderer, &InfFuelRect);
+    SDL_RenderFillRect(gRenderer, &infFuelRect);
   }
 }
 
@@ -839,8 +864,8 @@ typedef struct AsteroidList
 void powerUpSpawn(Asteroid *asteroid, PowerUpList *powerUps)
 {
   PowerUp power;
-  power.width = 16;
-  power.height = 16;
+  power.width = 32;
+  power.height = 32;
   power.posX = asteroid->posX + asteroid->width / 2;
   power.posY = asteroid->posY + asteroid->height / 2;
   power.rect.w = power.width;
@@ -1578,20 +1603,21 @@ void drawGame(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, TT
     PowerUpList *powerPtr = powerUps;
     while (powerPtr != NULL)
     {
+      SDL_FRect spriteRect;
       if (powerPtr->power.powerUp == SHIELD)
       {
-        SDL_SetRenderDrawColor(gRenderer, 0, 0, 255, 255);
+        spriteRect = getSpriteRect(spriteList, "powerupBlue_shield.png");
       }
       else if (powerPtr->power.powerUp == ARMOR)
       {
-        SDL_SetRenderDrawColor(gRenderer, 255, 0, 0, 255);
+        spriteRect = getSpriteRect(spriteList, "powerupBlue_star.png");
       }
       else if (powerPtr->power.powerUp == INFFUEL)
       {
-        SDL_SetRenderDrawColor(gRenderer, 255, 0, 255, 255);
+        spriteRect = getSpriteRect(spriteList, "powerupBlue_bolt.png");
       }
-
-      SDL_RenderFillRect(gRenderer, &powerPtr->power.rect);
+      
+      SDL_RenderTexture(gRenderer, spriteSheet, &spriteRect, &powerPtr->power.rect);
 
       powerPtr = powerPtr->nextPowerUp;
     }
