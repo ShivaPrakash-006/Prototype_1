@@ -1,59 +1,48 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <string.h>
 #include "deps/cJSON.h"
-#include <libxml/parser.h>
-#include <libxml/tree.h>
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_rect.h>
+#include <SDL3/SDL_render.h>
+#include <SDL3/SDL_surface.h>
 #include <SDL3_image/SDL_image.h>
-#include <SDL3_ttf/SDL_ttf.h>
-#include <SDL3_ttf/SDL_textengine.h>
 #include <SDL3_mixer/SDL_mixer.h>
 #include <SDL3_net/SDL_net.h>
 #include <SDL3_rtf/SDL_rtf.h>
+#include <SDL3_ttf/SDL_textengine.h>
+#include <SDL3_ttf/SDL_ttf.h>
+#include <libxml/parser.h>
+#include <libxml/tree.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define uint8 unsigned char
 #define uint16 unsigned short
 #define uint32 unsigned int
 #define uint64 unsigned long
 
-#define PRINTERROR printf("%s", SDL_GetError());
-#define PRINTIMGERROR(PATH) printf("'%s' could not be loaded. SDL_image Error: %s", PATH, SDL_GetError());
 #define PI 3.14159265359
 #define WIDTH 1280
 #define HEIGHT 720
 #define SPRITEMAX 77
 
-enum State
-{ /* Possible Game States */
-  MENU = 0,
-  GAME = 1,
-  PAUSED = 2,
-  OVER = 3,
-  SCORES = 4
+enum State { /* Possible Game States */
+             MENU = 0,
+             GAME = 1,
+             PAUSED = 2,
+             OVER = 3,
+             SCORES = 4
 };
 
-enum Power
-{ /* Possible PowerUps */
-  SHIELD = 0,
-  ARMOR = 1,
-  INFFUEL = 2,
+enum Power { /* Possible PowerUps */
+             SHIELD = 0,
+             ARMOR = 1,
+             INFFUEL = 2,
 };
 
-enum Size
-{
-  SMALL = 0,
-  NORMAL = 1,
-  LARGE = 2
-};
+enum Size { SMALL = 0, NORMAL = 1, LARGE = 2 };
 
-enum Sort
-{
-  SCORE = 0,
-  TIME = 1,
-  NAME = 2
-};
+enum Sort { SCORE = 0, TIME = 1, NAME = 2 };
 
 enum State gameState = MENU;
 
@@ -74,19 +63,16 @@ TTF_TextEngine *gTextEngine = NULL;
 
 /* Sprtie Definitions */
 /* Struct */
-typedef struct Sprite
-{
+typedef struct Sprite {
   char name[50];
   int width, height, x, y;
 } Sprite;
 
-SDL_FRect getSpriteRect(Sprite *spriteList, const char* spriteName)
-{ 
+SDL_FRect getSpriteRect(Sprite *spriteList, const char *spriteName) {
   SDL_FRect spriteRect = {0, 0, 0, 0};
-  
+
   for (int i = 0; i < SPRITEMAX; i++)
-    if (strncmp(spriteList[i].name, spriteName, 50) == 0)
-    {
+    if (strncmp(spriteList[i].name, spriteName, 50) == 0) {
       spriteRect.x = spriteList[i].x;
       spriteRect.y = spriteList[i].y;
       spriteRect.w = spriteList[i].width;
@@ -101,8 +87,7 @@ Sprite spriteList[SPRITEMAX] = {};
 
 /* Timer Definitions */
 /* Struct */
-typedef struct Timer
-{
+typedef struct Timer {
   uint32 startTicks;
   uint32 pausedTicks;
 
@@ -114,8 +99,7 @@ typedef struct Timer
 } Timer;
 
 /* Functions */
-Timer timerInit(void)
-{
+Timer timerInit(void) {
   Timer timer;
 
   timer.startTicks = 0;
@@ -127,8 +111,7 @@ Timer timerInit(void)
   return timer;
 }
 
-void timerStart(Timer *timer)
-{
+void timerStart(Timer *timer) {
   timer->started = true;
   timer->paused = false;
 
@@ -136,8 +119,7 @@ void timerStart(Timer *timer)
   timer->pausedTicks = 0;
 }
 
-void timerStop(Timer *timer)
-{
+void timerStop(Timer *timer) {
   timer->started = false;
   timer->paused = false;
 
@@ -146,16 +128,13 @@ void timerStop(Timer *timer)
   timer->pausedTicks = 0;
 }
 
-void timerReset(Timer *timer)
-{
+void timerReset(Timer *timer) {
   timerStop(timer);
   timerStart(timer);
 }
 
-void timerPause(Timer *timer)
-{
-  if (timer->started && !timer->paused)
-  {
+void timerPause(Timer *timer) {
+  if (timer->started && !timer->paused) {
     timer->paused = true;
 
     timer->pausedTicks = SDL_GetTicks() - timer->startTicks;
@@ -163,16 +142,11 @@ void timerPause(Timer *timer)
   }
 }
 
-void timerCalcTicks(Timer *timer)
-{
-  if (timer->started)
-  {
-    if (timer->paused)
-    {
+void timerCalcTicks(Timer *timer) {
+  if (timer->started) {
+    if (timer->paused) {
       timer->ticks = timer->pausedTicks;
-    }
-    else
-    {
+    } else {
       timer->ticks = SDL_GetTicks() - timer->startTicks;
     }
   }
@@ -180,8 +154,7 @@ void timerCalcTicks(Timer *timer)
 
 /* Delta Timer Definitions */
 /* Struct */
-typedef struct DeltaTimer
-{
+typedef struct DeltaTimer {
   uint32 frameStart;
   uint32 frameEnd;
 
@@ -189,18 +162,17 @@ typedef struct DeltaTimer
 } DeltaTimer;
 
 /* Functions */
-void deltaCalc(DeltaTimer *dTimer)
-{
+void deltaCalc(DeltaTimer *dTimer) {
   dTimer->frameEnd = dTimer->frameStart;
   dTimer->frameStart = SDL_GetPerformanceCounter();
 
-  dTimer->delta = (dTimer->frameStart - dTimer->frameEnd) / (double)SDL_GetPerformanceFrequency();
+  dTimer->delta = (dTimer->frameStart - dTimer->frameEnd) /
+                  (double)SDL_GetPerformanceFrequency();
 }
 
 /* Bullet Definitions */
 /* Struct */
-typedef struct Bullet
-{
+typedef struct Bullet {
   int width;  /* 10 */
   int height; /* 10 */
 
@@ -225,22 +197,18 @@ typedef struct Bullet
 } Bullet;
 
 /* Linked List */
-typedef struct BulletList
-{
+typedef struct BulletList {
   Bullet bullet;
   struct BulletList *nextBullet;
 
 } BulletList;
 
-void bulletDestroy(Bullet *bullet, struct BulletList *bullets)
-{
+void bulletDestroy(Bullet *bullet, struct BulletList *bullets) {
   BulletList *bulletPtr, *prevPtr;
   prevPtr = bullets;
   bulletPtr = bullets->nextBullet;
-  while (bulletPtr != NULL)
-  {
-    if (bulletPtr->bullet.bulletNum == bullet->bulletNum)
-    {
+  while (bulletPtr != NULL) {
+    if (bulletPtr->bullet.bulletNum == bullet->bulletNum) {
       prevPtr->nextBullet = bulletPtr->nextBullet;
       free(bulletPtr);
       break;
@@ -252,8 +220,7 @@ void bulletDestroy(Bullet *bullet, struct BulletList *bullets)
 
 /* PowerUp Definitions */
 /* Struct */
-typedef struct PowerUp
-{
+typedef struct PowerUp {
   float width;
   float height;
   float posX;
@@ -266,8 +233,7 @@ typedef struct PowerUp
   enum Power powerUp;
 } PowerUp;
 
-typedef struct PowerUpList
-{
+typedef struct PowerUpList {
 
   PowerUp power;
   struct PowerUpList *nextPowerUp;
@@ -275,8 +241,7 @@ typedef struct PowerUpList
 } PowerUpList;
 
 /* Functions */
-struct PowerUpList powerUpInit(void)
-{
+struct PowerUpList powerUpInit(void) {
   PowerUpList powerUps;
 
   powerUps.power.width = 0;
@@ -294,16 +259,13 @@ struct PowerUpList powerUpInit(void)
   return powerUps;
 }
 
-void powerUpDestroy(PowerUp *powerUp, PowerUpList *powerUps)
-{
+void powerUpDestroy(PowerUp *powerUp, PowerUpList *powerUps) {
   PowerUpList *powerPtr, *prevPtr;
   powerPtr = powerUps->nextPowerUp;
   prevPtr = powerUps;
 
-  while (powerPtr != NULL)
-  {
-    if (powerUp->powerNum == powerPtr->power.powerNum)
-    {
+  while (powerPtr != NULL) {
+    if (powerUp->powerNum == powerPtr->power.powerNum) {
       prevPtr->nextPowerUp = powerPtr->nextPowerUp;
       free(powerPtr);
       break;
@@ -315,8 +277,7 @@ void powerUpDestroy(PowerUp *powerUp, PowerUpList *powerUps)
 
 /* Player Definitions*/
 /* Struct */
-typedef struct Player
-{
+typedef struct Player {
   short armor; /* 3 */
 
   short width;  /* 10 */
@@ -377,8 +338,7 @@ typedef struct Player
 } Player;
 
 /* Functions */
-void playerInit(Player *player)
-{
+void playerInit(Player *player) {
   player->armor = 3;
   player->score = 0;
 
@@ -445,8 +405,7 @@ void playerInit(Player *player)
   timerStart(&player->gameTimer);
 }
 
-void playerLogs(Player player)
-{
+void playerLogs(Player player) {
   printf("posX: %f\n", player.posX);
   printf("posY: %f\n", player.posY);
   printf("rot: %f\n", player.rot);
@@ -456,8 +415,7 @@ void playerLogs(Player player)
   printf("velY: %f\n", player.velY);
 }
 
-void playerShoot(Player *player, int num)
-{
+void playerShoot(Player *player, int num) {
   Bullet bullet; /* Creating A Bullet*/
 
   /* Initialization of bullet */
@@ -467,19 +425,18 @@ void playerShoot(Player *player, int num)
   bullet.damage = 1;
   bullet.speed = 1000;
 
-  if (num == 1)
-  {
+  if (num == 1) {
     bullet.rot = player->rot + 10;
-  }
-  else
-  {
+  } else {
     bullet.rot = player->rot - 10;
   }
   bullet.velX = SDL_sinf(bullet.rot * PI / 180);
   bullet.velY = -SDL_cosf(bullet.rot * PI / 180);
 
-  bullet.posX = player->posX + player->width / 2 - bullet.width / 2;   /* Center of X */
-  bullet.posY = player->posY + player->height / 2 - bullet.height / 2; /* Center of Y */
+  bullet.posX =
+      player->posX + player->width / 2.f - bullet.width / 2.f; /* Center of X */
+  bullet.posY = player->posY + player->height / 2.f -
+                bullet.height / 2.f; /* Center of Y */
 
   bullet.rect.w = bullet.width;
   bullet.rect.h = bullet.height;
@@ -501,16 +458,12 @@ void playerShoot(Player *player, int num)
   bulletPtr = player->bullets.nextBullet;
   newBullet = (BulletList *)malloc(sizeof(BulletList));
 
-  while (bulletPtr != NULL)
-  {
-    if (bulletNum == bulletPtr->bullet.bulletNum)
-    {
+  while (bulletPtr != NULL) {
+    if (bulletNum == bulletPtr->bullet.bulletNum) {
       prevPtr = bulletPtr;
       bulletPtr = bulletPtr->nextBullet;
       bulletNum++;
-    }
-    else
-    {
+    } else {
       break;
     }
   }
@@ -521,49 +474,43 @@ void playerShoot(Player *player, int num)
   prevPtr->nextBullet = newBullet;
 }
 
-void playerBulletHander(Player *player, double delta)
-{
-  if (player->shooting && player->bulletTimer.ticks > player->shootDelay)
-  {
+void playerBulletHander(Player *player, double delta) {
+  if (player->shooting && player->bulletTimer.ticks > player->shootDelay) {
     playerShoot(player, 1);
     playerShoot(player, 2);
     timerReset(&player->bulletTimer);
   }
 
   BulletList *bulletPtr = &player->bullets;
-  while (bulletPtr != NULL)
-  {
+  while (bulletPtr != NULL) {
     /* Moving the bullets */
-    bulletPtr->bullet.posX += bulletPtr->bullet.velX * bulletPtr->bullet.speed * delta;
-    bulletPtr->bullet.posY += bulletPtr->bullet.velY * bulletPtr->bullet.speed * delta;
+    bulletPtr->bullet.posX +=
+        bulletPtr->bullet.velX * bulletPtr->bullet.speed * delta;
+    bulletPtr->bullet.posY +=
+        bulletPtr->bullet.velY * bulletPtr->bullet.speed * delta;
 
     bulletPtr->bullet.rect.x = bulletPtr->bullet.posX;
     bulletPtr->bullet.rect.y = bulletPtr->bullet.posY;
 
     /* Looping */
-    if (bulletPtr->bullet.posX + bulletPtr->bullet.width < 0)
-    {
+    if (bulletPtr->bullet.posX + bulletPtr->bullet.width < 0) {
       bulletPtr->bullet.posX = WIDTH; /* Left to Right */
     }
 
-    else if (bulletPtr->bullet.posX > WIDTH)
-    {
+    else if (bulletPtr->bullet.posX > WIDTH) {
       bulletPtr->bullet.posX = 0 - bulletPtr->bullet.width; /* Right to Left */
     }
 
-    if (bulletPtr->bullet.posY + bulletPtr->bullet.height < 0)
-    {
+    if (bulletPtr->bullet.posY + bulletPtr->bullet.height < 0) {
       bulletPtr->bullet.posY = HEIGHT; /* Top to Bottom */
     }
 
-    else if (bulletPtr->bullet.posY > HEIGHT)
-    {
+    else if (bulletPtr->bullet.posY > HEIGHT) {
       bulletPtr->bullet.posY = 0 - bulletPtr->bullet.height; /* Bottom to Top */
     }
 
     timerCalcTicks(&bulletPtr->bullet.lifeTimer);
-    if (bulletPtr->bullet.lifeTimer.ticks > bulletPtr->bullet.lifeTime)
-    {
+    if (bulletPtr->bullet.lifeTimer.ticks > bulletPtr->bullet.lifeTime) {
       bulletDestroy(&bulletPtr->bullet, &player->bullets);
     }
 
@@ -573,12 +520,9 @@ void playerBulletHander(Player *player, double delta)
   timerCalcTicks(&player->bulletTimer);
 }
 
-void playerEventHandler(SDL_Event e, Player *player)
-{
-  if (e.type == SDL_EVENT_KEY_DOWN & e.key.repeat == 0)
-  {
-    switch (e.key.key)
-    {
+void playerEventHandler(SDL_Event e, Player *player) {
+  if (e.type == SDL_EVENT_KEY_DOWN & e.key.repeat == 0) {
+    switch (e.key.key) {
     case SDLK_W:
       player->moving = true;
       break;
@@ -605,8 +549,8 @@ void playerEventHandler(SDL_Event e, Player *player)
       break;
 
     case SDLK_L:
-      if ((!player->afterBurnerOverheat && player->afterBurnerFuel > 0) || player->infFuelTimer.started)
-      {
+      if ((!player->afterBurnerOverheat && player->afterBurnerFuel > 0) ||
+          player->infFuelTimer.started) {
         player->posX += player->velX * player->leapDistance;
         player->posY += player->velY * player->leapDistance;
         player->afterBurnerOverheat = true;
@@ -621,11 +565,8 @@ void playerEventHandler(SDL_Event e, Player *player)
     default:
       break;
     }
-  }
-  else if (e.type == SDL_EVENT_KEY_UP & e.key.repeat == 0)
-  {
-    switch (e.key.key)
-    {
+  } else if (e.type == SDL_EVENT_KEY_UP & e.key.repeat == 0) {
+    switch (e.key.key) {
     case SDLK_W:
       player->moving = false;
       break;
@@ -652,8 +593,7 @@ void playerEventHandler(SDL_Event e, Player *player)
   }
 }
 
-void playerMovementHandler(Player *player, double delta)
-{
+void playerMovementHandler(Player *player, double delta) {
   /* Rotation */
   if (player->rotVel > 0) /* Holding Right */
     player->rot += player->rotSpeed * delta;
@@ -661,9 +601,13 @@ void playerMovementHandler(Player *player, double delta)
     player->rot -= player->rotSpeed * delta;
   if (player->rotVel != 0) /* Calculating velX and velY after rotating */
   {
-    /* Calculating velX and velY, also force on both Axes through trigonometry */
-    player->velX = SDL_sinf(player->rot * PI / 180);  /* rot * PI / 180 to convert to radians */
-    player->velY = -SDL_cosf(player->rot * PI / 180); /* Due to Y coordinates of SDL, a minus is required */
+    /* Calculating velX and velY, also force on both Axes through trigonometry
+     */
+    player->velX = SDL_sinf(player->rot * PI /
+                            180); /* rot * PI / 180 to convert to radians */
+    player->velY =
+        -SDL_cosf(player->rot * PI /
+                  180); /* Due to Y coordinates of SDL, a minus is required */
   }
 
   /* Screen Looping */
@@ -679,8 +623,7 @@ void playerMovementHandler(Player *player, double delta)
   else if (player->posY + player->height < 0) /* Up to Down */
     player->posY = HEIGHT;
 
-  if (player->moving)
-  {
+  if (player->moving) {
     if (player->afterburning) /* Afterburner */
       player->moveSpeed = 400;
     else
@@ -694,37 +637,31 @@ void playerMovementHandler(Player *player, double delta)
   }
 
   /* Afterburner */
-  if (!player->afterburning && player->afterBurnerFuel < player->maxAfterBurnerFuel)
+  if (!player->afterburning &&
+      player->afterBurnerFuel < player->maxAfterBurnerFuel)
     player->afterBurnerFuel += player->afterBurnerRefuelRate;
-  else if (player->afterburning && player->afterBurnerFuel > 0 && !player->infFuelTimer.started)
+  else if (player->afterburning && player->afterBurnerFuel > 0 &&
+           !player->infFuelTimer.started)
     player->afterBurnerFuel -= player->afterBurnerDepletionRate;
-  else if (player->afterBurnerFuel <= 0)
-  {
+  else if (player->afterBurnerFuel <= 0) {
     player->afterBurnerOverheat = true;
     player->afterburning = false;
   }
 
-  if (player->afterBurnerOverheat && player->afterBurnerFuel >= player->maxAfterBurnerFuel)
+  if (player->afterBurnerOverheat &&
+      player->afterBurnerFuel >= player->maxAfterBurnerFuel)
     player->afterBurnerOverheat = false;
 }
 
-void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
-{
+void playerPowerUpHandler(Player *player, PowerUpList *powerUps) {
   PowerUpList *powerPtr = powerUps->nextPowerUp;
-  while (powerPtr != NULL)
-  {
-    if (SDL_HasRectIntersectionFloat(&player->rect, &powerPtr->power.rect))
-    {
-      if (powerPtr->power.powerUp == SHIELD)
-      {
+  while (powerPtr != NULL) {
+    if (SDL_HasRectIntersectionFloat(&player->rect, &powerPtr->power.rect)) {
+      if (powerPtr->power.powerUp == SHIELD) {
         player->shield = true;
-      }
-      else if (powerPtr->power.powerUp == ARMOR)
-      {
+      } else if (powerPtr->power.powerUp == ARMOR) {
         player->repair = true;
-      }
-      else if (powerPtr->power.powerUp == INFFUEL)
-      {
+      } else if (powerPtr->power.powerUp == INFFUEL) {
         player->infFuel = true;
       }
 
@@ -733,40 +670,38 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
     powerPtr = powerPtr->nextPowerUp;
   }
 
-  if (player->shield)
-  {
+  if (player->shield) {
     timerStart(&player->shieldTimer);
     player->shield = false;
   }
-  if (player->shieldTimer.started && player->shieldTimer.ticks > player->shieldTime - 1000 && !player->shieldBlinker.started)
-  {
+  if (player->shieldTimer.started &&
+      player->shieldTimer.ticks > player->shieldTime - 1000 &&
+      !player->shieldBlinker.started) {
     timerStart(&player->shieldBlinker);
   }
-  if (player->shieldTimer.started && player->shieldBlinker.started && player->shieldBlinker.ticks > 200)
-  {
+  if (player->shieldTimer.started && player->shieldBlinker.started &&
+      player->shieldBlinker.ticks > 200) {
     player->shieldBlink = !player->shieldBlink;
     timerReset(&player->shieldBlinker);
   }
-  if (player->shieldTimer.started && player->shieldTimer.ticks > player->shieldTime)
-  {
+  if (player->shieldTimer.started &&
+      player->shieldTimer.ticks > player->shieldTime) {
     timerStop(&player->shieldTimer);
     timerStop(&player->shieldBlinker);
     player->shieldBlink = false;
   }
 
-  if (player->repair)
-  {
+  if (player->repair) {
     player->armor++;
     player->repair = false;
   }
 
-  if (player->infFuel)
-  {
+  if (player->infFuel) {
     timerStart(&player->infFuelTimer);
     player->infFuel = false;
   }
-  if (player->infFuelTimer.started && player->infFuelTimer.ticks > player->infFuelTime)
-  {
+  if (player->infFuelTimer.started &&
+      player->infFuelTimer.ticks > player->infFuelTime) {
     timerStop(&player->infFuelTimer);
   }
 
@@ -775,47 +710,73 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps)
   timerCalcTicks(&player->infFuelTimer);
 }
 
-void playerTextHandler(Player *player)
-{
+void playerTextHandler(Player *player) {
   /* Score */
-  char *score;                                      /* Number of characters in "Score: 999" */
-  SDL_asprintf(&score, "Score: %u", player->score); /* To join string with int */
+  char *score; /* Number of characters in "Score: 999" */
+  SDL_asprintf(&score, "Score: %lu",
+               player->score); /* To join string with int */
   player->scoreText = TTF_CreateText(gTextEngine, kenVectorFont, score, 0);
 }
 
-void playerRender(Player player)
-{
-  /* Player Render */
-  SDL_FRect spriteRect = getSpriteRect(spriteList, "playerShip2_blue.png");
-  SDL_RenderTextureRotated(gRenderer, spriteSheet, &spriteRect, &player.rect, player.rot, NULL, SDL_FLIP_NONE);
-
+void playerRender(Player player) {
   /* Render Stats */
   /* Score */
-  TTF_DrawRendererText(player.scoreText, WIDTH - strlen(player.scoreText->text) * 10, 10);
+  TTF_DrawRendererText(player.scoreText,
+                       WIDTH - strlen(player.scoreText->text) * 10, 10);
 
   /* PowerUps */
   SDL_FRect shieldSpriteRect = getSpriteRect(spriteList, "shield3.png");
   SDL_FRect shieldRect = shieldSpriteRect;
-  shieldRect.x = player.posX + player.width/2 - shieldRect.w/2; 
-  shieldRect.y = player.posY + player.height/2 - shieldRect.h/2; 
+  shieldRect.x = player.posX + player.width / 2.f - shieldRect.w / 2.f;
+  shieldRect.y = player.posY + player.height / 2.f - shieldRect.h / 2.f;
   SDL_FRect infFuelRect = {60, 20, 10, 10};
 
-  if (player.shieldTimer.started)
-  {
-    if (player.shieldBlinker.started && !player.shieldBlink) 
-      SDL_RenderTextureRotated(gRenderer, spriteSheet, &shieldSpriteRect, &shieldRect, player.rot, NULL, SDL_FLIP_NONE);
+  if (player.shieldTimer.started) {
+    if (player.shieldBlinker.started && !player.shieldBlink)
+      SDL_RenderTextureRotated(gRenderer, spriteSheet, &shieldSpriteRect,
+                               &shieldRect, player.rot, NULL, SDL_FLIP_NONE);
     else if (!player.shieldBlinker.started)
-      SDL_RenderTextureRotated(gRenderer, spriteSheet, &shieldSpriteRect, &shieldRect, player.rot, NULL, SDL_FLIP_NONE);
+      SDL_RenderTextureRotated(gRenderer, spriteSheet, &shieldSpriteRect,
+                               &shieldRect, player.rot, NULL, SDL_FLIP_NONE);
   }
-  if (player.infFuelTimer.started)
-  {
+
+  /* Player Render */
+  /* Player Icon */
+  SDL_FRect playerSpriteRect =
+      getSpriteRect(spriteList, "playerShip2_blue.png");
+  /* Stiching Two Textures Together */
+  if (player.afterburning && player.moving) {
+    SDL_FRect fireSpriteRect = getSpriteRect(spriteList, "fire15.png");
+    SDL_Texture *fireTexture = SDL_CreateTexture(
+        gRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET,
+        player.rect.w, player.rect.h + fireSpriteRect.h);
+
+    SDL_SetRenderTarget(gRenderer, fireTexture);
+
+    SDL_FRect fireRect = {player.width / 2 - fireSpriteRect.w / 2,
+                          player.height, fireSpriteRect.w, fireSpriteRect.h};
+
+    SDL_RenderTexture(gRenderer, spriteSheet, &fireSpriteRect, &fireRect);
+
+    SDL_SetRenderTarget(gRenderer, NULL);
+
+    SDL_FRect renderRect = {player.posX - fireSpriteRect.h,
+                            player.posY - fireSpriteRect.h,
+                            player.width + fireSpriteRect.h * 2,
+                            player.height + fireSpriteRect.h * 2};
+    SDL_FPoint playerCenter = {};
     SDL_SetRenderDrawColor(gRenderer, 255, 0, 255, 255);
-    SDL_RenderFillRect(gRenderer, &infFuelRect);
+    SDL_RenderTextureRotated(gRenderer, fireTexture, NULL, &renderRect,
+                             player.rot, NULL, SDL_FLIP_NONE);
   }
+  SDL_RenderTextureRotated(gRenderer, spriteSheet, &playerSpriteRect,
+                           &player.rect, player.rot, NULL, SDL_FLIP_NONE);
+
+  SDL_SetRenderDrawColor(gRenderer, 255, 0, 255, 255);
+  // SDL_RenderRect(gRenderer, &player.rect);
 }
 
-void playerDestroy(Player *player)
-{
+void playerDestroy(Player *player) {
   player->posX = -300;
   player->posY = -300;
 
@@ -829,8 +790,7 @@ void playerDestroy(Player *player)
 
 /* Asteroid Definitions */
 /* Struct */
-typedef struct Asteroid
-{
+typedef struct Asteroid {
   enum Size size;
   int color;
 
@@ -853,16 +813,14 @@ typedef struct Asteroid
   SDL_FRect spriteRect;
 } Asteroid;
 
-typedef struct AsteroidList
-{
+typedef struct AsteroidList {
   Asteroid asteroid;
   struct AsteroidList *nextAsteroid;
 } AsteroidList;
 
 /* PowerUp Functions */
 
-void powerUpSpawn(Asteroid *asteroid, PowerUpList *powerUps)
-{
+void powerUpSpawn(Asteroid *asteroid, PowerUpList *powerUps) {
   PowerUp power;
   power.width = 32;
   power.height = 32;
@@ -880,16 +838,12 @@ void powerUpSpawn(Asteroid *asteroid, PowerUpList *powerUps)
   newPower = (PowerUpList *)malloc(sizeof(PowerUpList));
   uint32 powerNum = 1;
 
-  while (powerPtr != NULL)
-  {
-    if (powerPtr->power.powerNum == powerNum)
-    {
+  while (powerPtr != NULL) {
+    if (powerPtr->power.powerNum == powerNum) {
       prevPtr = powerPtr;
       powerPtr = powerPtr->nextPowerUp;
       powerNum++;
-    }
-    else
-    {
+    } else {
       break;
     }
   }
@@ -901,8 +855,7 @@ void powerUpSpawn(Asteroid *asteroid, PowerUpList *powerUps)
 }
 
 /* Functions */
-AsteroidList asteroidInit(void)
-{
+AsteroidList asteroidInit(void) {
   AsteroidList asteroids;
   asteroids.asteroid.astNum = 0;
   asteroids.asteroid.width = 0;
@@ -916,41 +869,38 @@ AsteroidList asteroidInit(void)
   return asteroids;
 }
 
-void asteroidSpawn(AsteroidList *asteroids, Asteroid *refAsteroid)
-{
-  Asteroid asteroid; /* SDL_rand(Number Of Outcomes) + lowerValue -> lowerValue to NumberOfOutcome - 1*/
+void asteroidSpawn(AsteroidList *asteroids, Asteroid *refAsteroid) {
+  Asteroid asteroid; /* SDL_rand(Number Of Outcomes) + lowerValue -> lowerValue
+                        to NumberOfOutcome - 1*/
 
   if (refAsteroid == NULL) /* Normal Spawn */
   {
     asteroid.size = (enum Size)SDL_rand(3);
-    asteroid.color  = SDL_rand(2);
-  }
-  else /* Spawn Based On Destroyed Asteroid */
+    asteroid.color = SDL_rand(2);
+  } else /* Spawn Based On Destroyed Asteroid */
   {
     asteroid.size = refAsteroid->size - 1;
     asteroid.color = refAsteroid->color;
   }
   char *spriteName = NULL;
   char color[2][6] = {"Brown", "Grey"};
-  if (asteroid.size == SMALL)
-  {
-    SDL_asprintf(&spriteName, "meteor%s_tiny%i.png", color[asteroid.color], SDL_rand(2)+1);
+  if (asteroid.size == SMALL) {
+    SDL_asprintf(&spriteName, "meteor%s_tiny%i.png", color[asteroid.color],
+                 SDL_rand(2) + 1);
     asteroid.width = 30;
     asteroid.height = 30;
     asteroid.speed = SDL_rand(100) + 300;
     asteroid.rotVel = SDL_rand(40) - 20;
-  }
-  else if (asteroid.size == NORMAL)
-  {
-    SDL_asprintf(&spriteName, "meteor%s_med%i.png", color[asteroid.color], SDL_rand(2)+1);
+  } else if (asteroid.size == NORMAL) {
+    SDL_asprintf(&spriteName, "meteor%s_med%i.png", color[asteroid.color],
+                 SDL_rand(2) + 1);
     asteroid.width = 80;
     asteroid.height = 80;
     asteroid.speed = SDL_rand(100) + 200;
     asteroid.rotVel = SDL_rand(20) - 10;
-  }
-  else
-  {
-    SDL_asprintf(&spriteName, "meteor%s_big%i.png", color[asteroid.color], SDL_rand(4)+1);
+  } else {
+    SDL_asprintf(&spriteName, "meteor%s_big%i.png", color[asteroid.color],
+                 SDL_rand(4) + 1);
     asteroid.width = 200;
     asteroid.height = 200;
     asteroid.speed = SDL_rand(100) + 100;
@@ -959,15 +909,14 @@ void asteroidSpawn(AsteroidList *asteroids, Asteroid *refAsteroid)
 
   asteroid.spriteRect = getSpriteRect(spriteList, spriteName);
 
-  switch (SDL_rand(4))
-  {
+  switch (SDL_rand(4)) {
   case 0: /* Up */
     asteroid.posX = SDL_rand(WIDTH);
     asteroid.posY = 0 - asteroid.height;
 
     asteroid.velX = (SDL_rand(20) - 10) / (float)10; /* -1.0 -> 0.9 */
     if (asteroid.velX >= 0)
-      asteroid.velX += 0.1;                         /* -1.0 -> -0.1 U 0.1 -> 1.0 */
+      asteroid.velX += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
     asteroid.velY = (SDL_rand(10) + 1) / (float)10; /* 0.1 -> 1.0 */
     break;
 
@@ -987,7 +936,7 @@ void asteroidSpawn(AsteroidList *asteroids, Asteroid *refAsteroid)
 
     asteroid.velX = (SDL_rand(20) - 10) / (float)10; /* -1.0 -> 0.9 */
     if (asteroid.velX >= 0)
-      asteroid.velX += 0.1;                          /* -1.0 -> -0.1 U 0.1 -> 1.0 */
+      asteroid.velX += 0.1; /* -1.0 -> -0.1 U 0.1 -> 1.0 */
     asteroid.velY = (SDL_rand(10) - 10) / (float)10; /* -1.0 -> -0.1 */
     break;
 
@@ -1023,16 +972,12 @@ void asteroidSpawn(AsteroidList *asteroids, Asteroid *refAsteroid)
   newAst = (AsteroidList *)malloc(sizeof(AsteroidList));
   uint astNum = 1;
 
-  while (astPtr != NULL)
-  {
-    if (astPtr->asteroid.astNum == astNum)
-    {
+  while (astPtr != NULL) {
+    if (astPtr->asteroid.astNum == astNum) {
       astNum++;
       prevPtr = astPtr;
       astPtr = astPtr->nextAsteroid;
-    }
-    else
-    {
+    } else {
       break;
     }
   }
@@ -1043,13 +988,11 @@ void asteroidSpawn(AsteroidList *asteroids, Asteroid *refAsteroid)
   prevPtr->nextAsteroid = newAst;
 }
 
-void asteroidDestroy(Asteroid *asteroid, AsteroidList *asteroids)
-{
+void asteroidDestroy(Asteroid *asteroid, AsteroidList *asteroids) {
   if (asteroid->size != SMALL) /* Spawn Asteroids Of Larger Asteroid */
   {
     uint8 num = SDL_rand(4) + 3; /* Number Of Asteroids to Spawn */
-    for (uint8 astNum = 0; astNum < num; astNum++)
-    {
+    for (uint8 astNum = 0; astNum < num; astNum++) {
       asteroidSpawn(asteroids, asteroid);
     }
   }
@@ -1057,10 +1000,8 @@ void asteroidDestroy(Asteroid *asteroid, AsteroidList *asteroids)
   AsteroidList *astPtr, *prevPtr;
   astPtr = asteroids->nextAsteroid;
   prevPtr = asteroids;
-  while (astPtr != NULL)
-  {
-    if (astPtr->asteroid.astNum == asteroid->astNum)
-    {
+  while (astPtr != NULL) {
+    if (astPtr->asteroid.astNum == asteroid->astNum) {
       prevPtr->nextAsteroid = astPtr->nextAsteroid;
       free(astPtr);
       break;
@@ -1070,21 +1011,19 @@ void asteroidDestroy(Asteroid *asteroid, AsteroidList *asteroids)
   }
 }
 
-void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *player, Timer *spawnTimer, int *spawnCount, int spawnTime, double delta )
-{
+void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps,
+                     Player *player, Timer *spawnTimer, int *spawnCount,
+                     int spawnTime, double delta) {
   /* Asteroids - Bullet Collision Detector & Destroyer */
   AsteroidList *astPtr = asteroids->nextAsteroid;
-  while (astPtr != NULL)
-  {
+  while (astPtr != NULL) {
     bool destroyed = false;
     BulletList *bullPtr = player->bullets.nextBullet;
-    while (bullPtr != NULL && !destroyed)
-    {
-      if (SDL_HasRectIntersectionFloat(&astPtr->asteroid.rect, &bullPtr->bullet.rect))
-      {
+    while (bullPtr != NULL && !destroyed) {
+      if (SDL_HasRectIntersectionFloat(&astPtr->asteroid.rect,
+                                       &bullPtr->bullet.rect)) {
         int powerChance = SDL_rand(20);
-        if (powerChance == 10)
-        {
+        if (powerChance == 10) {
           powerUpSpawn(&astPtr->asteroid, powerUps);
         }
 
@@ -1097,13 +1036,10 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
       bullPtr = bullPtr->nextBullet;
     }
 
-    if (!destroyed)
-    {
-      if (SDL_HasRectIntersectionFloat(&astPtr->asteroid.rect, &player->rect))
-      {
+    if (!destroyed) {
+      if (SDL_HasRectIntersectionFloat(&astPtr->asteroid.rect, &player->rect)) {
         asteroidDestroy(&astPtr->asteroid, asteroids);
-        if (!player->shieldTimer.started)
-        {
+        if (!player->shieldTimer.started) {
           player->armor--;
         }
       }
@@ -1113,8 +1049,7 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
   }
 
   /* Asteroid Spawner */
-  if (spawnTimer->ticks > SDL_rand(3000) + spawnTime)
-  {
+  if (spawnTimer->ticks > SDL_rand(3000) + spawnTime) {
     asteroidSpawn(asteroids, NULL);
     (*spawnCount)++;
     timerReset(spawnTimer); /* Reset Timer */
@@ -1122,38 +1057,32 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
 
   /* Asteroid Movement */
   astPtr = asteroids->nextAsteroid;
-  while (astPtr != NULL)
-  {
-    astPtr->asteroid.posX += astPtr->asteroid.velX * astPtr->asteroid.speed * delta;
-    astPtr->asteroid.posY += astPtr->asteroid.velY * astPtr->asteroid.speed * delta;
+  while (astPtr != NULL) {
+    astPtr->asteroid.posX +=
+        astPtr->asteroid.velX * astPtr->asteroid.speed * delta;
+    astPtr->asteroid.posY +=
+        astPtr->asteroid.velY * astPtr->asteroid.speed * delta;
     astPtr->asteroid.rot += astPtr->asteroid.rotVel;
-    if (astPtr->asteroid.rot < 0)
-    {
+    if (astPtr->asteroid.rot < 0) {
       astPtr->asteroid.rot = 360 + astPtr->asteroid.rot;
-    }
-    else if (astPtr->asteroid.rot > 360)
-    {
+    } else if (astPtr->asteroid.rot > 360) {
       astPtr->asteroid.rot = astPtr->asteroid.rot - 360;
     }
 
     /* Screen Looping */
-    if (astPtr->asteroid.posX + astPtr->asteroid.width < 0)
-    {
+    if (astPtr->asteroid.posX + astPtr->asteroid.width < 0) {
       astPtr->asteroid.posX = WIDTH; /* Left to Right */
     }
 
-    else if (astPtr->asteroid.posX > WIDTH)
-    {
+    else if (astPtr->asteroid.posX > WIDTH) {
       astPtr->asteroid.posX = 0 - astPtr->asteroid.width; /* Right to Left */
     }
 
-    if (astPtr->asteroid.posY + astPtr->asteroid.height < 0)
-    {
+    if (astPtr->asteroid.posY + astPtr->asteroid.height < 0) {
       astPtr->asteroid.posY = HEIGHT; /* Top to Bottom */
     }
 
-    else if (astPtr->asteroid.posY > HEIGHT)
-    {
+    else if (astPtr->asteroid.posY > HEIGHT) {
       astPtr->asteroid.posY = 0 - astPtr->asteroid.height; /* Bottom to Top */
     }
 
@@ -1168,8 +1097,7 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps, Player *pla
 
 /* Buttons */
 /* Structure */
-typedef struct Button
-{
+typedef struct Button {
   float width;
   float height;
   float posX;
@@ -1184,27 +1112,24 @@ typedef struct Button
 } Button;
 
 /* Functions */
-bool buttonStateUpdater(Button *button)
-{
+bool buttonStateUpdater(Button *button) {
   float mouseX;
   float mouseY;
-  SDL_MouseButtonFlags mouseState = SDL_GetMouseState(&mouseX, &mouseY); // Getting The State of the mouse
+  SDL_MouseButtonFlags mouseState =
+      SDL_GetMouseState(&mouseX, &mouseY); // Getting The State of the mouse
 
-  if (mouseX > button->posX && mouseX < button->posX + button->width && // Checking X Collision
-      mouseY > button->posY && mouseY < button->posY + button->height)  // Checking Y Collision
+  if (mouseX > button->posX &&
+      mouseX < button->posX + button->width && // Checking X Collision
+      mouseY > button->posY &&
+      mouseY < button->posY + button->height) // Checking Y Collision
   {
     button->hovered = true;
-    if (mouseState == SDL_BUTTON_LMASK)
-    {
+    if (mouseState == SDL_BUTTON_LMASK) {
       button->clicked = true;
-    }
-    else
-    {
+    } else {
       button->clicked = false;
     }
-  }
-  else
-  {
+  } else {
     button->hovered = false;
     button->clicked = false;
   }
@@ -1216,11 +1141,9 @@ typedef struct ScoreObj {
   int time;
 } ScoreObj;
 
-char* extractScores(char *fileName)
-{
+char *extractScores(char *fileName) {
   FILE *scoreJson = fopen(fileName, "r");
-  if (scoreJson == NULL)
-  {
+  if (scoreJson == NULL) {
     printf("Unable to open '%s'.", fileName);
     return NULL;
   }
@@ -1229,20 +1152,19 @@ char* extractScores(char *fileName)
   int length = ftell(scoreJson);
   rewind(scoreJson);
 
-  char *jsonData = (char*) malloc(length + 1);
+  char *jsonData = (char *)malloc(length + 1);
   fread(jsonData, 1, length, scoreJson);
   jsonData[length] = '\0';
 
   return jsonData;
 }
 
-char* updateScores(char *jsonData, char *username, int score, int time)
-{
-  cJSON *root = jsonData[0] != '\0' ? cJSON_Parse(jsonData) : cJSON_CreateObject();
+char *updateScores(char *jsonData, char *username, int score, int time) {
+  cJSON *root =
+      jsonData[0] != '\0' ? cJSON_Parse(jsonData) : cJSON_CreateObject();
 
   cJSON *userScores = cJSON_GetObjectItem(root, "Scores");
-  if (userScores == NULL)
-  {
+  if (userScores == NULL) {
     userScores = cJSON_CreateArray();
     cJSON_AddItemToObject(root, "Scores", userScores);
   }
@@ -1254,25 +1176,21 @@ char* updateScores(char *jsonData, char *username, int score, int time)
   cJSON_AddItemToArray(userScores, scoreObj);
 
   // SORT DATA HERE
-  
+
   jsonData = cJSON_PrintUnformatted(root);
 
   cJSON_Delete(root);
   return jsonData;
 }
 
-bool saveScores(char *jsonData, char *fileName)
-{
+bool saveScores(char *jsonData, char *fileName) {
   bool success = true;
 
   FILE *scoresJson = fopen(fileName, "w");
-  if (scoresJson == NULL)
-  {
+  if (scoresJson == NULL) {
     printf("Unable to open '%s'.", fileName);
     success = false;
-  }
-  else
-  {
+  } else {
     fputs(jsonData, scoresJson);
     fclose(scoresJson);
   }
@@ -1280,10 +1198,9 @@ bool saveScores(char *jsonData, char *fileName)
   return success;
 }
 
-int compareScores(const void *a, const void *b)
-{
-  const cJSON *scoreA = *(const cJSON**)a;
-  const cJSON *scoreB = *(const cJSON**)b;
+int compareScores(const void *a, const void *b) {
+  const cJSON *scoreA = *(const cJSON **)a;
+  const cJSON *scoreB = *(const cJSON **)b;
 
   int score1 = cJSON_GetObjectItem(scoreA, "Score")->valueint;
   int score2 = cJSON_GetObjectItem(scoreB, "Score")->valueint;
@@ -1291,10 +1208,9 @@ int compareScores(const void *a, const void *b)
   return score2 - score1;
 }
 
-int compareTime(const void *a, const void *b)
-{
-  const cJSON *scoreA = *(const cJSON**)a;
-  const cJSON *scoreB = *(const cJSON**)b;
+int compareTime(const void *a, const void *b) {
+  const cJSON *scoreA = *(const cJSON **)a;
+  const cJSON *scoreB = *(const cJSON **)b;
 
   int time1 = cJSON_GetObjectItem(scoreA, "Time")->valueint;
   int time2 = cJSON_GetObjectItem(scoreB, "Time")->valueint;
@@ -1302,10 +1218,9 @@ int compareTime(const void *a, const void *b)
   return time2 - time1;
 }
 
-int compareName(const void *a, const void *b)
-{
-  const cJSON *scoreA = *(const cJSON**)a;
-  const cJSON *scoreB = *(const cJSON**)b;
+int compareName(const void *a, const void *b) {
+  const cJSON *scoreA = *(const cJSON **)a;
+  const cJSON *scoreB = *(const cJSON **)b;
 
   const char *name1 = cJSON_GetObjectItem(scoreA, "Username")->valuestring;
   const char *name2 = cJSON_GetObjectItem(scoreB, "Username")->valuestring;
@@ -1313,38 +1228,36 @@ int compareName(const void *a, const void *b)
   return strncmp(name1, name2, 50);
 }
 
-void sortScores(cJSON *jsonData, enum Sort type)
-{
+void sortScores(cJSON *jsonData, enum Sort type) {
   cJSON *scores = cJSON_GetObjectItem(jsonData, "Scores");
   int count = cJSON_GetArraySize(scores);
 
-  if (count < 2) return;
+  if (count < 2)
+    return;
 
   cJSON **scoreList = malloc(count * sizeof(cJSON *));
   for (int i = 0; i < count; i++)
     scoreList[i] = cJSON_GetArrayItem(scores, i);
-  
+
   if (type == SCORE)
-    qsort(scoreList, count, sizeof(cJSON*), compareScores);
+    qsort(scoreList, count, sizeof(cJSON *), compareScores);
   else if (type == TIME)
-    qsort(scoreList, count, sizeof(cJSON*), compareTime);
-  else 
-    qsort(scoreList, count, sizeof(cJSON*), compareName);
+    qsort(scoreList, count, sizeof(cJSON *), compareTime);
+  else
+    qsort(scoreList, count, sizeof(cJSON *), compareName);
 
   cJSON *sortedScores = cJSON_CreateArray();
   for (int i = 0; i < count; i++)
     cJSON_AddItemToArray(sortedScores, cJSON_Duplicate(scoreList[i], 1));
-  
+
   cJSON_ReplaceItemInObject(jsonData, "Scores", sortedScores);
   free(scoreList);
 }
 
-bool parseXML(const char* fileName)
-{
+bool parseXML(const char *fileName) {
   bool success = false;
   xmlDoc *spriteXML = xmlReadFile(fileName, NULL, 0);
-  if (spriteXML == NULL)
-  {
+  if (spriteXML == NULL) {
     printf("'%s' could not be loaded!\n", fileName);
     success = false;
   }
@@ -1353,29 +1266,27 @@ bool parseXML(const char* fileName)
   xmlNode *curNode = root->children;
   int spriteNum = 0;
 
-  while (curNode != NULL)
-  {
-    if (curNode->type == XML_ELEMENT_NODE)
-    {
+  while (curNode != NULL) {
+    if (curNode->type == XML_ELEMENT_NODE) {
       Sprite *sprite = &spriteList[spriteNum];
-      
-      xmlChar *name = xmlGetProp(curNode, (const xmlChar*)"name");
-      xmlChar *x = xmlGetProp(curNode, (const xmlChar*)"x");
-      xmlChar *y = xmlGetProp(curNode, (const xmlChar*)"y");
-      xmlChar *width = xmlGetProp(curNode, (const xmlChar*)"width");
-      xmlChar *height = xmlGetProp(curNode, (const xmlChar*)"height");
+
+      xmlChar *name = xmlGetProp(curNode, (const xmlChar *)"name");
+      xmlChar *x = xmlGetProp(curNode, (const xmlChar *)"x");
+      xmlChar *y = xmlGetProp(curNode, (const xmlChar *)"y");
+      xmlChar *width = xmlGetProp(curNode, (const xmlChar *)"width");
+      xmlChar *height = xmlGetProp(curNode, (const xmlChar *)"height");
 
       snprintf(sprite->name, sizeof(sprite->name), "%s", name);
-      sprite->x = atoi((char*) x);
-      sprite->y = atoi((char*) y);
-      sprite->width = atoi((char*) width);
-      sprite->height = atoi((char*) height);
-    
+      sprite->x = atoi((char *)x);
+      sprite->y = atoi((char *)y);
+      sprite->width = atoi((char *)width);
+      sprite->height = atoi((char *)height);
+
       xmlFree(name);
       xmlFree(x);
       xmlFree(y);
       xmlFree(width);
-      xmlFree(height); 
+      xmlFree(height);
 
       spriteNum++;
     }
@@ -1386,65 +1297,52 @@ bool parseXML(const char* fileName)
   return success;
 }
 
-bool init(void)
-{
+bool init(void) {
   printf("=== Start Of Program ===\n");
   bool success = true;
 
   /* Initializing SDL3 */
-  if (SDL_Init(SDL_INIT_VIDEO) < 0)
-  {
+  if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     printf("SDL could not be initialized! SDL Error: %s\n", SDL_GetError());
     success = false;
-  }
-  else
-  {
-    if (IMG_Init(IMG_INIT_PNG - IMG_INIT_JPG) == 0)
-    {
-      printf("SDL_Image could not be initialized! SDL_Image Error %s\n", SDL_GetError());
+  } else {
+    if (IMG_Init(IMG_INIT_PNG - IMG_INIT_JPG) == 0) {
+      printf("SDL_Image could not be initialized! SDL_Image Error %s\n",
+             SDL_GetError());
       success = false;
-    }
-    else
-    {
-      if (TTF_Init() < 0)
-      {
-        printf("SDL_ttf could not be initialized! SDL_ttf Error: %s\n", SDL_GetError());
+    } else {
+      if (TTF_Init() < 0) {
+        printf("SDL_ttf could not be initialized! SDL_ttf Error: %s\n",
+               SDL_GetError());
         success = false;
-      }
-      else
-      {
-        gWindow = SDL_CreateWindow("Astroids-P1", WIDTH, HEIGHT, SDL_WINDOW_BORDERLESS);
-        if (gWindow == NULL)
-        {
-          printf("Window could not be created! SDL Error: %s\n", SDL_GetError());
+      } else {
+        gWindow = SDL_CreateWindow("Astroids-P1", WIDTH, HEIGHT,
+                                   SDL_WINDOW_BORDERLESS);
+        if (gWindow == NULL) {
+          printf("Window could not be created! SDL Error: %s\n",
+                 SDL_GetError());
           success = false;
-        }
-        else
-        {
+        } else {
           gRenderer = SDL_CreateRenderer(gWindow, NULL);
-          if (gRenderer == NULL)
-          {
-            printf("Renderer could not be created! SDL Error: %s\n", SDL_GetError());
+          if (gRenderer == NULL) {
+            printf("Renderer could not be created! SDL Error: %s\n",
+                   SDL_GetError());
             success = false;
-          }
-          else
-          {
+          } else {
             SDL_SetRenderVSync(gRenderer, 1);
             SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
             gTextEngine = TTF_CreateRendererTextEngine(gRenderer);
-            if (gTextEngine == NULL)
-            {
-              printf("TextEngine could not be created! SDL_ttf Error: %s\n", SDL_GetError());
-            }
-            else
-            {
-              kenVectorFont = TTF_OpenFont("Assets/Fonts/kenvector_future_thin.ttf", HEIGHT / 50);
-              if (kenVectorFont == NULL)
-              {
-                printf("'JetBrainsMono-Medium.ttf' could not be loaded! SDL_ttf Error: %s\n", SDL_GetError());
-              }
-              else
-              {
+            if (gTextEngine == NULL) {
+              printf("TextEngine could not be created! SDL_ttf Error: %s\n",
+                     SDL_GetError());
+            } else {
+              kenVectorFont = TTF_OpenFont(
+                  "Assets/Fonts/kenvector_future_thin.ttf", HEIGHT / 50);
+              if (kenVectorFont == NULL) {
+                printf("'JetBrainsMono-Medium.ttf' could not be loaded! "
+                       "SDL_ttf Error: %s\n",
+                       SDL_GetError());
+              } else {
                 /* code */
               }
             }
@@ -1457,64 +1355,78 @@ bool init(void)
   return success;
 }
 
-bool load(Player *player) /* Get Game Objects and load their respective assets */
+bool load(
+    Player *player) /* Get Game Objects and load their respective assets */
 {
   bool success = true;
 
-  if (player != NULL)
-  {
-    player->icon = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Crystal.png"));
-    if (player->icon == NULL)
-    {
-      printf("'Crystal.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+  if (player != NULL) {
+    player->icon =
+        SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Crystal.png"));
+    if (player->icon == NULL) {
+      printf("'Crystal.png' could not be loaded! SDL_image Error: %s\n",
+             SDL_GetError());
     }
   }
 
-  menuBack1 = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Backgrounds/menu1.png"));
-  if (menuBack1 == NULL)
-  {
-    printf("'Assets/Backgrounds/menu1.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+  menuBack1 = SDL_CreateTextureFromSurface(
+      gRenderer, IMG_Load("Assets/Backgrounds/menu1.png"));
+  if (menuBack1 == NULL) {
+    printf("'Assets/Backgrounds/menu1.png' could not be loaded! SDL_image "
+           "Error: %s\n",
+           SDL_GetError());
     success = false;
   }
-  menuBack2 = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Backgrounds/menu2.png"));
-  if (menuBack2 == NULL)
-  {
-    printf("'Assets/Backgrounds/menu2.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
-    success = false;
-  }
-
-  scoreBack = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Backgrounds/scores.png"));
-  if (scoreBack == NULL)
-  {
-    printf("'Assets/Backgrounds/scores.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+  menuBack2 = SDL_CreateTextureFromSurface(
+      gRenderer, IMG_Load("Assets/Backgrounds/menu2.png"));
+  if (menuBack2 == NULL) {
+    printf("'Assets/Backgrounds/menu2.png' could not be loaded! SDL_image "
+           "Error: %s\n",
+           SDL_GetError());
     success = false;
   }
 
-  gameBack = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Backgrounds/game.png"));
-  if (gameBack == NULL)
-  {
-    printf("'Assets/Backgrounds/game.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+  scoreBack = SDL_CreateTextureFromSurface(
+      gRenderer, IMG_Load("Assets/Backgrounds/scores.png"));
+  if (scoreBack == NULL) {
+    printf("'Assets/Backgrounds/scores.png' could not be loaded! SDL_image "
+           "Error: %s\n",
+           SDL_GetError());
     success = false;
   }
 
-  pauseBack = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Backgrounds/paused.png"));
-  if (pauseBack == NULL)
-  {
-    printf("'Assets/Backgrounds/paused.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+  gameBack = SDL_CreateTextureFromSurface(
+      gRenderer, IMG_Load("Assets/Backgrounds/game.png"));
+  if (gameBack == NULL) {
+    printf("'Assets/Backgrounds/game.png' could not be loaded! SDL_image "
+           "Error: %s\n",
+           SDL_GetError());
     success = false;
   }
 
-  overBack = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/Backgrounds/over.png"));
-  if (overBack == NULL)
-  {
-    printf("'Assets/Backgrounds/over.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+  pauseBack = SDL_CreateTextureFromSurface(
+      gRenderer, IMG_Load("Assets/Backgrounds/paused.png"));
+  if (pauseBack == NULL) {
+    printf("'Assets/Backgrounds/paused.png' could not be loaded! SDL_image "
+           "Error: %s\n",
+           SDL_GetError());
     success = false;
   }
 
-  spriteSheet = SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/sheet.png"));
-  if (spriteSheet == NULL)
-  {
-    printf("'Assets/sheet.png' could not be loaded! SDL_image Error: %s\n", SDL_GetError());
+  overBack = SDL_CreateTextureFromSurface(
+      gRenderer, IMG_Load("Assets/Backgrounds/over.png"));
+  if (overBack == NULL) {
+    printf("'Assets/Backgrounds/over.png' could not be loaded! SDL_image "
+           "Error: %s\n",
+           SDL_GetError());
+    success = false;
+  }
+
+  spriteSheet =
+      SDL_CreateTextureFromSurface(gRenderer, IMG_Load("Assets/sheet.png"));
+  if (spriteSheet == NULL) {
+    printf("'Assets/sheet.png' could not be loaded! SDL_image Error: %s\n",
+           SDL_GetError());
     success = false;
   }
 
@@ -1523,317 +1435,305 @@ bool load(Player *player) /* Get Game Objects and load their respective assets *
   return success;
 }
 
-void drawMenu(Button *buttons, float f1PosX, float f2PosX)
-{
+void drawMenu(Button *buttons, float f1PosX, float f2PosX) {
   char buttonsText[3][10] = {"Play", "Scores", "Quit"};
   SDL_SetRenderDrawColor(gRenderer, 0x06, 0x12, 0x21, 0xFF);
   SDL_RenderClear(gRenderer);
 
-  SDL_FRect tempRect = {f1PosX, 0.f, WIDTH, HEIGHT}; //Every Image has Same Dimension
+  SDL_FRect tempRect = {f1PosX, 0.f, WIDTH,
+                        HEIGHT}; // Every Image has Same Dimension
   SDL_RenderTexture(gRenderer, menuBack1, NULL, &tempRect);
-  tempRect.x = f1PosX - WIDTH; 
+  tempRect.x = f1PosX - WIDTH;
   SDL_RenderTexture(gRenderer, menuBack1, NULL, &tempRect);
-  tempRect.x = f2PosX; 
+  tempRect.x = f2PosX;
   SDL_RenderTexture(gRenderer, menuBack2, NULL, &tempRect);
   tempRect.x = f2PosX - WIDTH;
   SDL_RenderTexture(gRenderer, menuBack2, NULL, &tempRect);
 
-    for (uint8 i = 0; i < 3; i++) // Number of Buttons
-    {
-      TTF_Text *buttonText = TTF_CreateText(gTextEngine, kenVectorFont, buttonsText[i], strlen(buttonsText[i]));
-      int textHeight, textWidth;
-      TTF_GetTextSize(buttonText, &textWidth, &textHeight);
-      if (buttons[i].hovered)
-      {
-        SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
-        TTF_SetTextColor(buttonText, 255, 255, 255, 255);
-      }
-      else
-      {
-        SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
-        TTF_SetTextColor(buttonText, 0, 0, 0, 255);
-      }
-
-      SDL_RenderFillRect(gRenderer, &buttons[i].rect);
-      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
-                            buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
+  for (uint8 i = 0; i < 3; i++) // Number of Buttons
+  {
+    TTF_Text *buttonText = TTF_CreateText(
+        gTextEngine, kenVectorFont, buttonsText[i], strlen(buttonsText[i]));
+    int textHeight, textWidth;
+    TTF_GetTextSize(buttonText, &textWidth, &textHeight);
+    if (buttons[i].hovered) {
+      SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
+      TTF_SetTextColor(buttonText, 255, 255, 255, 255);
+    } else {
+      SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
+      TTF_SetTextColor(buttonText, 0, 0, 0, 255);
     }
 
-    SDL_RenderPresent(gRenderer);
+    SDL_RenderFillRect(gRenderer, &buttons[i].rect);
+    TTF_DrawRendererText(
+        buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
+        buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
   }
 
-void drawGame(Player *player, AsteroidList *asteroids, PowerUpList *powerUps, TTF_Text *fpsText)
-  {
-    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
-    SDL_RenderClear(gRenderer);
+  SDL_RenderPresent(gRenderer);
+}
 
-    
-    float backWidth, backHeight;
-    SDL_GetTextureSize(scoreBack, &backWidth, &backHeight);
-    SDL_FRect backRect = {0, 0, backWidth, backHeight};
-    for (int i = 0; i < WIDTH; i+= backWidth)
-      for (int j = 0; j < HEIGHT; j+= backHeight)
-      {
-        backRect.x = i;
-        backRect.y = j;
-        SDL_RenderTexture(gRenderer, gameBack, NULL, &backRect);
-      }
+void drawGame(Player *player, AsteroidList *asteroids, PowerUpList *powerUps,
+              TTF_Text *fpsText) {
+  SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
+  SDL_RenderClear(gRenderer);
 
-    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-
-    SDL_FRect bulletSpriteRect = getSpriteRect(spriteList, "laserRed16.png");
-    BulletList *bullPtr = &player->bullets;
-    while (bullPtr != NULL)
-    {
-      if (!SDL_HasRectIntersectionFloat(&player->rect, &bullPtr->bullet.rect) && bullPtr->bullet.damage != -1)
-      {
-        SDL_RenderTextureRotated(gRenderer, spriteSheet, &bulletSpriteRect, &bullPtr->bullet.rect, bullPtr->bullet.rot, &bullPtr->bullet.center, SDL_FLIP_NONE);
-      }
-
-      bullPtr = bullPtr->nextBullet;
+  float backWidth, backHeight;
+  SDL_GetTextureSize(scoreBack, &backWidth, &backHeight);
+  SDL_FRect backRect = {0, 0, backWidth, backHeight};
+  for (int i = 0; i < WIDTH; i += backWidth)
+    for (int j = 0; j < HEIGHT; j += backHeight) {
+      backRect.x = i;
+      backRect.y = j;
+      SDL_RenderTexture(gRenderer, gameBack, NULL, &backRect);
     }
 
-    AsteroidList *astPtr = asteroids;
-    while (astPtr != NULL) /* Render Asteroids */
-    {
-      SDL_RenderTextureRotated(gRenderer, spriteSheet, &astPtr->asteroid.spriteRect, &astPtr->asteroid.rect, astPtr->asteroid.rot, NULL, SDL_FLIP_NONE);
-      astPtr = astPtr->nextAsteroid;
+  SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+
+  SDL_FRect bulletSpriteRect = getSpriteRect(spriteList, "laserRed16.png");
+  BulletList *bullPtr = &player->bullets;
+  while (bullPtr != NULL) {
+    if (!SDL_HasRectIntersectionFloat(&player->rect, &bullPtr->bullet.rect) &&
+        bullPtr->bullet.damage != -1) {
+      SDL_RenderTextureRotated(gRenderer, spriteSheet, &bulletSpriteRect,
+                               &bullPtr->bullet.rect, bullPtr->bullet.rot, NULL,
+                               SDL_FLIP_NONE);
+      // SDL_RenderRect(gRenderer, &bullPtr->bullet.rect);
     }
 
-    PowerUpList *powerPtr = powerUps;
-    while (powerPtr != NULL)
-    {
-      SDL_FRect spriteRect;
-      if (powerPtr->power.powerUp == SHIELD)
-      {
-        spriteRect = getSpriteRect(spriteList, "powerupBlue_shield.png");
-      }
-      else if (powerPtr->power.powerUp == ARMOR)
-      {
-        spriteRect = getSpriteRect(spriteList, "powerupBlue_star.png");
-      }
-      else if (powerPtr->power.powerUp == INFFUEL)
-      {
-        spriteRect = getSpriteRect(spriteList, "powerupBlue_bolt.png");
-      }
-      
-      SDL_RenderTexture(gRenderer, spriteSheet, &spriteRect, &powerPtr->power.rect);
-
-      powerPtr = powerPtr->nextPowerUp;
-    }
-
-    TTF_DrawRendererText(fpsText, WIDTH - 70, HEIGHT - 20);
-
-    playerTextHandler(player);
-    playerRender(*player);
-
-    SDL_RenderPresent(gRenderer);
+    bullPtr = bullPtr->nextBullet;
   }
 
-void drawPaused(Button *buttons)
+  AsteroidList *astPtr = asteroids;
+  while (astPtr != NULL) /* Render Asteroids */
   {
-    char buttonsText[2][10] = {"Resume", "Menu"};
-    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0x77);
-    SDL_RenderFillRect(gRenderer, NULL);
-    
-    float backWidth, backHeight;
-    SDL_GetTextureSize(scoreBack, &backWidth, &backHeight);
-    SDL_FRect backRect = {0, 0, backWidth, backHeight};
-    for (int i = 0; i < WIDTH; i+= backWidth)
-      for (int j = 0; j < HEIGHT; j+= backHeight)
-      {
-        backRect.x = i;
-        backRect.y = j;
-        SDL_RenderTexture(gRenderer, pauseBack, NULL, &backRect);
-      }
+    SDL_RenderTextureRotated(
+        gRenderer, spriteSheet, &astPtr->asteroid.spriteRect,
+        &astPtr->asteroid.rect, astPtr->asteroid.rot, NULL, SDL_FLIP_NONE);
+    astPtr = astPtr->nextAsteroid;
+  }
 
+  PowerUpList *powerPtr = powerUps;
+  while (powerPtr != NULL) {
+    SDL_FRect spriteRect;
+    if (powerPtr->power.powerUp == SHIELD) {
+      spriteRect = getSpriteRect(spriteList, "powerupBlue_shield.png");
+    } else if (powerPtr->power.powerUp == ARMOR) {
+      spriteRect = getSpriteRect(spriteList, "powerupBlue_star.png");
+    } else if (powerPtr->power.powerUp == INFFUEL) {
+      spriteRect = getSpriteRect(spriteList, "powerupBlue_bolt.png");
+    }
+
+    SDL_RenderTexture(gRenderer, spriteSheet, &spriteRect,
+                      &powerPtr->power.rect);
+
+    powerPtr = powerPtr->nextPowerUp;
+  }
+
+  TTF_DrawRendererText(fpsText, WIDTH - 70, HEIGHT - 20);
+
+  playerTextHandler(player);
+  playerRender(*player);
+
+  SDL_RenderPresent(gRenderer);
+}
+
+void drawPaused(Button *buttons) {
+  char buttonsText[2][10] = {"Resume", "Menu"};
+  SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0x77);
+  SDL_RenderFillRect(gRenderer, NULL);
+
+  float backWidth, backHeight;
+  SDL_GetTextureSize(scoreBack, &backWidth, &backHeight);
+  SDL_FRect backRect = {0, 0, backWidth, backHeight};
+  for (int i = 0; i < WIDTH; i += backWidth)
+    for (int j = 0; j < HEIGHT; j += backHeight) {
+      backRect.x = i;
+      backRect.y = j;
+      SDL_RenderTexture(gRenderer, pauseBack, NULL, &backRect);
+    }
+
+  for (uint8 i = 0; i < 2; i++) // Number of Buttons
+  {
+    TTF_Text *buttonText = TTF_CreateText(
+        gTextEngine, kenVectorFont, buttonsText[i], strlen(buttonsText[i]));
+    int textHeight, textWidth;
+    TTF_GetTextSize(buttonText, &textWidth, &textHeight);
+    if (buttons[i].hovered) {
+      SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
+      TTF_SetTextColor(buttonText, 255, 255, 255, 255);
+    } else {
+      SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
+      TTF_SetTextColor(buttonText, 0, 0, 0, 255);
+    }
+
+    SDL_RenderFillRect(gRenderer, &buttons[i].rect);
+    TTF_DrawRendererText(
+        buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
+        buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
+  }
+
+  SDL_RenderPresent(gRenderer);
+}
+
+void drawOver(Button *buttons, TTF_Text **texts) {
+  SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
+  SDL_RenderClear(gRenderer);
+
+  float backWidth, backHeight;
+  SDL_GetTextureSize(scoreBack, &backWidth, &backHeight);
+  SDL_FRect backRect = {0, 0, backWidth, backHeight};
+  for (int i = 0; i < WIDTH; i += backWidth)
+    for (int j = 0; j < HEIGHT; j += backHeight) {
+      backRect.x = i;
+      backRect.y = j;
+      SDL_RenderTexture(gRenderer, overBack, NULL, &backRect);
+    }
+
+  SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+  int textHeight, textWidth;
+  TTF_GetTextSize(texts[0], &textWidth, &textHeight);
+  TTF_DrawRendererText(texts[0], WIDTH / 2 - textWidth / 2,
+                       HEIGHT / 4 - textHeight / 2);
+  TTF_GetTextSize(texts[1], &textWidth, &textHeight);
+  TTF_DrawRendererText(texts[1], WIDTH / 2 - textWidth / 2,
+                       3 * HEIGHT / 4 - textHeight / 2);
+  TTF_SetFontSize(kenVectorFont, HEIGHT / 50);
+  TTF_GetTextSize(texts[2], &textWidth, &textHeight);
+  TTF_DrawRendererText(texts[2], WIDTH / 2 - textWidth / 2,
+                       7 * HEIGHT / 8 - textHeight / 2);
+  TTF_SetFontSize(kenVectorFont, 3 * HEIGHT / 50);
+
+  char buttonsText[2][10] = {"Menu", "Replay"};
+  for (uint8 i = 0; i < 2; i++) // Number of Buttons
+  {
+    TTF_Text *buttonText = TTF_CreateText(
+        gTextEngine, kenVectorFont, buttonsText[i], strlen(buttonsText[i]));
+    TTF_GetTextSize(buttonText, &textWidth, &textHeight);
+    if (buttons[i].hovered) {
+      SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
+      TTF_SetTextColor(buttonText, 255, 255, 255, 255);
+    } else {
+      SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
+      TTF_SetTextColor(buttonText, 0, 0, 0, 255);
+    }
+
+    SDL_RenderFillRect(gRenderer, &buttons[i].rect);
+    TTF_DrawRendererText(
+        buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
+        buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
+  }
+
+  SDL_RenderPresent(gRenderer);
+}
+
+void drawScores(Button *buttons, TTF_Text **texts, ScoreObj *scores) {
+  SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
+  SDL_RenderClear(gRenderer);
+
+  float backWidth, backHeight;
+  SDL_GetTextureSize(scoreBack, &backWidth, &backHeight);
+  SDL_FRect backRect = {0, 0, backWidth, backHeight};
+  for (int i = 0; i < WIDTH; i += backWidth)
+    for (int j = 0; j < HEIGHT; j += backHeight) {
+      backRect.x = i;
+      backRect.y = j;
+      SDL_RenderTexture(gRenderer, scoreBack, NULL, &backRect);
+    }
+
+  SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+  if (texts[3] != NULL) {
+    int textHeight, textWidth;
+    TTF_SetFontSize(kenVectorFont, HEIGHT / 50);
+    TTF_GetTextSize(texts[0], &textWidth, &textHeight);
+    TTF_DrawRendererText(texts[0], WIDTH / 2 - textWidth / 2,
+                         3 * HEIGHT / 4 - textHeight / 2);
+    TTF_SetFontSize(kenVectorFont, 3 * HEIGHT / 50);
+    TTF_GetTextSize(texts[1], &textWidth, &textHeight);
+    TTF_DrawRendererText(texts[1], WIDTH / 2 - textWidth / 2,
+                         2 * HEIGHT / 4 - textHeight / 2);
+  } else {
+    TTF_SetFontSize(kenVectorFont, HEIGHT / 50);
     for (uint8 i = 0; i < 2; i++) // Number of Buttons
     {
-      TTF_Text *buttonText = TTF_CreateText(gTextEngine, kenVectorFont, buttonsText[i], strlen(buttonsText[i]));
       int textHeight, textWidth;
-      TTF_GetTextSize(buttonText, &textWidth, &textHeight);
-      if (buttons[i].hovered)
-      {
+      TTF_GetTextSize(buttons[i].text, &textWidth, &textHeight);
+      if (buttons[i].hovered) {
         SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
-        TTF_SetTextColor(buttonText, 255, 255, 255, 255);
-      }
-      else
-      {
+        TTF_SetTextColor(buttons[i].text, 255, 255, 255, 255);
+      } else {
         SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
-        TTF_SetTextColor(buttonText, 0, 0, 0, 255);
+        TTF_SetTextColor(buttons[i].text, 0, 0, 0, 255);
       }
 
       SDL_RenderFillRect(gRenderer, &buttons[i].rect);
-      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
-                            buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
+      TTF_DrawRendererText(
+          buttons[i].text,
+          buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
+          buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
     }
 
-    SDL_RenderPresent(gRenderer);
-  }
-
-void drawOver(Button *buttons, TTF_Text **texts)
-  {
-    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
-    SDL_RenderClear(gRenderer);
-
-
-    float backWidth, backHeight;
-    SDL_GetTextureSize(scoreBack, &backWidth, &backHeight);
-    SDL_FRect backRect = {0, 0, backWidth, backHeight};
-    for (int i = 0; i < WIDTH; i+= backWidth)
-      for (int j = 0; j < HEIGHT; j+= backHeight)
-      {
-        backRect.x = i;
-        backRect.y = j;
-        SDL_RenderTexture(gRenderer, overBack, NULL, &backRect);
-      }
-
-    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    int textHeight, textWidth;
-    TTF_GetTextSize(texts[0], &textWidth, &textHeight);
-    TTF_DrawRendererText(texts[0], WIDTH / 2 - textWidth / 2, HEIGHT / 4 - textHeight / 2);
-    TTF_GetTextSize(texts[1], &textWidth, &textHeight);
-    TTF_DrawRendererText(texts[1], WIDTH / 2 - textWidth / 2, 3 * HEIGHT / 4 - textHeight / 2);
-    TTF_SetFontSize(kenVectorFont, HEIGHT / 50);
+    int textWidth, textHeight;
     TTF_GetTextSize(texts[2], &textWidth, &textHeight);
-    TTF_DrawRendererText(texts[2], WIDTH / 2 - textWidth / 2, 7 * HEIGHT / 8 - textHeight / 2);
+    TTF_DrawRendererText(texts[2], WIDTH / 2 - textWidth / 2,
+                         50 - textHeight / 2);
     TTF_SetFontSize(kenVectorFont, 3 * HEIGHT / 50);
 
-    char buttonsText[2][10] = {"Menu", "Replay"};
-    for (uint8 i = 0; i < 2; i++) // Number of Buttons
-    {
-      TTF_Text *buttonText = TTF_CreateText(gTextEngine, kenVectorFont, buttonsText[i], strlen(buttonsText[i]));
-      TTF_GetTextSize(buttonText, &textWidth, &textHeight);
-      if (buttons[i].hovered)
-      {
-        SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
-        TTF_SetTextColor(buttonText, 255, 255, 255, 255);
-      }
-      else
-      {
-        SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
-        TTF_SetTextColor(buttonText, 0, 0, 0, 255);
-      }
+    char *tempStr;
+    TTF_Text *tempText = NULL;
 
-      SDL_RenderFillRect(gRenderer, &buttons[i].rect);
-      TTF_DrawRendererText(buttonText, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
-                            buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
-    }
+    SDL_asprintf(&tempStr, "Username");
+    tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
+    TTF_GetTextSize(tempText, &textWidth, &textHeight);
+    TTF_DrawRendererText(tempText, 10, (2 * HEIGHT / 11) - (textHeight / 2));
+    SDL_asprintf(&tempStr, "Asteroids Destroyed");
+    tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
+    TTF_GetTextSize(tempText, &textWidth, &textHeight);
+    TTF_DrawRendererText(tempText, WIDTH / 2 - textWidth / 2,
+                         (2 * HEIGHT / 11) - (textHeight / 2));
+    SDL_asprintf(&tempStr, "Time Survived");
+    tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
+    TTF_GetTextSize(tempText, &textWidth, &textHeight);
+    TTF_DrawRendererText(tempText, WIDTH - (10 + textWidth),
+                         (2 * HEIGHT / 11) - (textHeight / 2));
 
-    SDL_RenderPresent(gRenderer);
-  }
-
-void drawScores(Button *buttons, TTF_Text **texts, ScoreObj *scores)
-  {
-    SDL_SetRenderDrawColor(gRenderer, 0x22, 0x22, 0x11, 0xFF);
-    SDL_RenderClear(gRenderer);
-
-    float backWidth, backHeight;
-    SDL_GetTextureSize(scoreBack, &backWidth, &backHeight);
-    SDL_FRect backRect = {0, 0, backWidth, backHeight};
-    for (int i = 0; i < WIDTH; i+= backWidth)
-      for (int j = 0; j < HEIGHT; j+= backHeight)
-      {
-        backRect.x = i;
-        backRect.y = j;
-        SDL_RenderTexture(gRenderer, scoreBack, NULL, &backRect);
-      }
-
-    SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    if (texts[3] != NULL)
-    {
-      int textHeight, textWidth;
-      TTF_SetFontSize(kenVectorFont, HEIGHT / 50);
-      TTF_GetTextSize(texts[0], &textWidth, &textHeight);
-      TTF_DrawRendererText(texts[0], WIDTH / 2 - textWidth / 2, 3 *HEIGHT / 4 - textHeight / 2);
-      TTF_SetFontSize(kenVectorFont, 3 * HEIGHT / 50);
-      TTF_GetTextSize(texts[1], &textWidth, &textHeight);
-      TTF_DrawRendererText(texts[1], WIDTH / 2 - textWidth / 2, 2 * HEIGHT / 4 - textHeight / 2);
-    }
-    else
-    {
-      TTF_SetFontSize(kenVectorFont, HEIGHT/50);
-      for (uint8 i = 0; i < 2; i++) // Number of Buttons
-      {
-        int textHeight, textWidth;
-        TTF_GetTextSize(buttons[i].text, &textWidth, &textHeight);
-        if (buttons[i].hovered)
-        {
-          SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
-          TTF_SetTextColor(buttons[i].text, 255, 255, 255, 255);
-        }
-        else
-        {
-          SDL_SetRenderDrawColor(gRenderer, 255, 255, 255, 255);
-          TTF_SetTextColor(buttons[i].text, 0, 0, 0, 255);
-        }
-
-        SDL_RenderFillRect(gRenderer, &buttons[i].rect);
-        TTF_DrawRendererText(buttons[i].text, buttons[i].posX + buttons[i].width / 2 - textWidth / 2,
-                              buttons[i].posY + buttons[i].height / 2 - textHeight / 2);
-      }
-
-      int textWidth, textHeight;
-      TTF_GetTextSize(texts[2], &textWidth, &textHeight);
-      TTF_DrawRendererText(texts[2], WIDTH/2 - textWidth/2, 50 - textHeight/2);
-      TTF_SetFontSize(kenVectorFont, 3 * HEIGHT / 50);
-      
-      char *tempStr;
-      TTF_Text *tempText = NULL;
-      
-      SDL_asprintf(&tempStr, "Username");
-      tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
-      TTF_GetTextSize(tempText, &textWidth, &textHeight);
-      TTF_DrawRendererText(tempText, 10, (2 * HEIGHT / 11) - (textHeight / 2));
-      SDL_asprintf(&tempStr, "Asteroids Destroyed");
-      tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
-      TTF_GetTextSize(tempText, &textWidth, &textHeight);
-      TTF_DrawRendererText(tempText, WIDTH/2 - textWidth/2, (2 * HEIGHT / 11) - (textHeight / 2));
-      SDL_asprintf(&tempStr, "Time Survived");
-      tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
-      TTF_GetTextSize(tempText, &textWidth, &textHeight);
-      TTF_DrawRendererText(tempText, WIDTH - (10 + textWidth), (2 * HEIGHT / 11) - (textHeight / 2));
-      
-      for (int i = 0; i < 8; i++)
-      {
-        if (scores[i].username[0] != '\0')
-        {
-          SDL_asprintf(&tempStr, scores[i].username);
-          tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
-          TTF_GetTextSize(tempText, &textWidth, &textHeight);
-          TTF_DrawRendererText(tempText, 10, ((i + 3)* HEIGHT / 11) - (textHeight / 2));
-          SDL_asprintf(&tempStr, "%i", scores[i].score);
-          tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
-          TTF_GetTextSize(tempText, &textWidth, &textHeight);
-          TTF_DrawRendererText(tempText, WIDTH/2 - textWidth/2, ((i + 3) * HEIGHT / 11) - (textHeight / 2));
-          SDL_asprintf(&tempStr, "%i", scores[i].time);
-          tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
-          TTF_GetTextSize(tempText, &textWidth, &textHeight);
-          TTF_DrawRendererText(tempText, WIDTH - (10 + textWidth), ((i + 3) * HEIGHT / 11) - (textHeight / 2));
-        }
+    for (int i = 0; i < 8; i++) {
+      if (scores[i].username[0] != '\0') {
+        SDL_asprintf(&tempStr, scores[i].username);
+        tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
+        TTF_GetTextSize(tempText, &textWidth, &textHeight);
+        TTF_DrawRendererText(tempText, 10,
+                             ((i + 3) * HEIGHT / 11) - (textHeight / 2));
+        SDL_asprintf(&tempStr, "%i", scores[i].score);
+        tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
+        TTF_GetTextSize(tempText, &textWidth, &textHeight);
+        TTF_DrawRendererText(tempText, WIDTH / 2 - textWidth / 2,
+                             ((i + 3) * HEIGHT / 11) - (textHeight / 2));
+        SDL_asprintf(&tempStr, "%i", scores[i].time);
+        tempText = TTF_CreateText(gTextEngine, kenVectorFont, tempStr, 0);
+        TTF_GetTextSize(tempText, &textWidth, &textHeight);
+        TTF_DrawRendererText(tempText, WIDTH - (10 + textWidth),
+                             ((i + 3) * HEIGHT / 11) - (textHeight / 2));
       }
     }
-
-
-    SDL_RenderPresent(gRenderer);
   }
 
-  void quit(void)
-  {
-    SDL_DestroyWindow(gWindow);
-    SDL_DestroyRenderer(gRenderer);
-    SDL_Quit();
-  }
+  SDL_RenderPresent(gRenderer);
+}
 
-int main(int argc, char *args[])
-{
+void quit(void) {
+  SDL_DestroyWindow(gWindow);
+  SDL_DestroyRenderer(gRenderer);
+  SDL_Quit();
+}
+
+int main(int argc, char *args[]) {
   bool run = false;
-  if (init()) /* Initialize */
+  if (init())       /* Initialize */
     if (load(NULL)) /* Load Assets */
       run = true;
 
-  while (run)
-  {
+  while (run) {
     if (gameState == MENU) /* Main Menu */
     {
       /* Buttons */
@@ -1887,47 +1787,41 @@ int main(int argc, char *args[])
       SDL_Event e;
       bool exited = false;
 
-      while (!exited)
-      {
-        while (SDL_PollEvent(&e) != 0)
-        {
-          if (e.type == SDL_EVENT_QUIT)
-          {
+      while (!exited) {
+        while (SDL_PollEvent(&e) != 0) {
+          if (e.type == SDL_EVENT_QUIT) {
             exited = true;
             run = false;
           }
         }
 
-        for (uint8 i = 0; i < 3; i++)
-        {
+        for (uint8 i = 0; i < 3; i++) {
           buttonStateUpdater(&buttons[i]);
         }
 
-        if (buttons[0].clicked == true)
-        {
+        if (buttons[0].clicked == true) {
           gameState = GAME;
         }
 
-        else if (buttons[1].clicked == true)
-        {
+        else if (buttons[1].clicked == true) {
           gameState = SCORES;
         }
 
-        else if (buttons[2].clicked == true)
-        {
+        else if (buttons[2].clicked == true) {
           exited = true;
           run = false;
         }
 
-        if (gameState != MENU)
-        {
+        if (gameState != MENU) {
           break;
         }
 
         f1PosX += f1Speed;
-        if (f1PosX > WIDTH) f1PosX = 0;
+        if (f1PosX > WIDTH)
+          f1PosX = 0;
         f2PosX += f2Speed;
-        if (f2PosX > WIDTH) f2PosX = 0;
+        if (f2PosX > WIDTH)
+          f2PosX = 0;
 
         drawMenu(buttons, f1PosX, f2PosX);
       }
@@ -1967,12 +1861,9 @@ int main(int argc, char *args[])
       bool exited = false;
       bool replay = false;
 
-      while (!exited)
-      {
-        while (SDL_PollEvent(&e) != 0)
-        {
-          if (e.type == SDL_EVENT_QUIT)
-          {
+      while (!exited) {
+        while (SDL_PollEvent(&e) != 0) {
+          if (e.type == SDL_EVENT_QUIT) {
             exited = true;
             run = false;
           }
@@ -1988,24 +1879,28 @@ int main(int argc, char *args[])
         playerMovementHandler(&player, dTimer.delta);
         playerBulletHander(&player, dTimer.delta);
         playerPowerUpHandler(&player, &powerUps);
-        asteroidHandler(&asteroids, &powerUps, &player, &astSpawnTimer, &astSpawnCount, astSpawnTime, dTimer.delta);
+        asteroidHandler(&asteroids, &powerUps, &player, &astSpawnTimer,
+                        &astSpawnCount, astSpawnTime, dTimer.delta);
         if (astSpawnCount > 10 && astSpawnCount > 500)
           astSpawnTime -= 100;
 
-
-        if (player.armor < 0)
-        {
+        if (player.armor < 0) {
           gameState = OVER;
         }
 
-        if (gameState == OVER)
-        {
+        if (gameState == OVER) {
           TTF_SetFontSize(kenVectorFont, 3 * HEIGHT / 50);
           char *tempText;
-          SDL_asprintf(&tempText, "You destroyed %li asteroids \nin %i minutes and %i seconds", player.score, (player.gameTimer.ticks / 1000) / 60, (player.gameTimer.ticks / 1000) % 60);
+          SDL_asprintf(
+              &tempText,
+              "You destroyed %li asteroids \nin %i minutes and %i seconds",
+              player.score, (player.gameTimer.ticks / 1000) / 60,
+              (player.gameTimer.ticks / 1000) % 60);
           TTF_Text *texts[3] = {};
           texts[0] = TTF_CreateText(gTextEngine, kenVectorFont, tempText, 0);
-          tempText = "Type the username. Press Escape to not save the score. Press Enter to save the score.\n(Empty Username won't be stored!)";
+          tempText =
+              "Type the username. Press Escape to not save the score. Press "
+              "Enter to save the score.\n(Empty Username won't be stored!)";
           texts[2] = TTF_CreateText(gTextEngine, kenVectorFont, tempText, 0);
 
           Button buttons[2];
@@ -2041,76 +1936,63 @@ int main(int argc, char *args[])
 
           SDL_Event e;
           bool next = false;
-          while (!next)
-          {
-            while (SDL_PollEvent(&e) != 0)
-            {
-              if (e.type == SDL_EVENT_QUIT)
-              {
+          while (!next) {
+            while (SDL_PollEvent(&e) != 0) {
+              if (e.type == SDL_EVENT_QUIT) {
                 next = true;
                 run = false;
               }
 
-              else if (e.type == SDL_EVENT_TEXT_INPUT && nameCursor < sizeof(playerName) - 1)
-              {
+              else if (e.type == SDL_EVENT_TEXT_INPUT &&
+                       nameCursor < sizeof(playerName) - 1) {
                 SDL_strlcat(playerName, e.text.text, sizeof(playerName));
                 nameCursor = strlen(playerName);
               }
 
-              else if (e.type == SDL_EVENT_KEY_DOWN && textInput)
-              {
-                if (e.key.key == SDLK_RETURN)
-                {
+              else if (e.type == SDL_EVENT_KEY_DOWN && textInput) {
+                if (e.key.key == SDLK_RETURN) {
                   SDL_StopTextInput(gWindow);
                   textInput = false;
-                }
-                else if (e.key.key == SDLK_ESCAPE)
-                {
+                } else if (e.key.key == SDLK_ESCAPE) {
                   strcpy(playerName, "");
                   SDL_StopTextInput(gWindow);
                   textInput = false;
-                }
-                else if (e.key.key == SDLK_BACKSPACE && nameCursor > 0)
-                {
+                } else if (e.key.key == SDLK_BACKSPACE && nameCursor > 0) {
                   nameCursor--;
                   playerName[nameCursor] = '\0';
                 }
               }
             }
-            texts[1] = TTF_CreateText(gTextEngine, kenVectorFont, playerName, 0);
+            texts[1] =
+                TTF_CreateText(gTextEngine, kenVectorFont, playerName, 0);
 
-            for (int i = 0; i < 2; i++)
-            {
+            for (int i = 0; i < 2; i++) {
               buttonStateUpdater(&buttons[i]);
             }
 
             if (buttons[0].clicked)
               gameState = MENU;
 
-            if (buttons[1].clicked)
-            {
+            if (buttons[1].clicked) {
               replay = true;
               gameState = GAME;
             }
 
-            if (gameState != OVER)
-            {
-              if (strcmp(playerName, "") != 0)
-              {
+            if (gameState != OVER) {
+              if (strcmp(playerName, "") != 0) {
                 char *jsonData = extractScores("scores.json");
-                jsonData = updateScores(jsonData, playerName, player.score, player.gameTimer.ticks / 1000);
+                jsonData = updateScores(jsonData, playerName, player.score,
+                                        player.gameTimer.ticks / 1000);
                 saveScores(jsonData, "scores.json");
               }
-              
+
               TTF_SetFontSize(kenVectorFont, HEIGHT / 50);
               break;
             }
 
             drawOver(buttons, texts);
           }
-        }
-        else if (gameState == PAUSED)
-        {
+        } else if (gameState == PAUSED) {
           Button buttons[2];
 
           Button resumeButton;
@@ -2143,45 +2025,36 @@ int main(int argc, char *args[])
           SDL_Event e;
           bool paused = true;
 
-          while (paused)
-          {
-            while (SDL_PollEvent(&e) != 0)
-            {
-              if (e.type == SDL_EVENT_QUIT)
-              {
+          while (paused) {
+            while (SDL_PollEvent(&e) != 0) {
+              if (e.type == SDL_EVENT_QUIT) {
                 paused = false;
                 run = false;
               }
 
-              if (e.type == SDL_EVENT_KEY_DOWN && e.key.repeat == false)
-              {
-                if (e.key.key == SDLK_ESCAPE)
-                {
+              if (e.type == SDL_EVENT_KEY_DOWN && e.key.repeat == false) {
+                if (e.key.key == SDLK_ESCAPE) {
                   gameState = GAME;
                   paused = false;
                 }
               }
             }
-            for (uint8 i = 0; i < 2; i++)
-            {
+            for (uint8 i = 0; i < 2; i++) {
               buttonStateUpdater(&buttons[i]);
             }
 
-            if (buttons[0].clicked)
-            {
+            if (buttons[0].clicked) {
               gameState = GAME;
               paused = false;
             }
 
-            if (buttons[1].clicked)
-            {
+            if (buttons[1].clicked) {
               gameState = MENU;
               paused = false;
               exited = true;
             }
 
-            if (gameState != PAUSED)
-            {
+            if (gameState != PAUSED) {
               break;
             }
 
@@ -2189,27 +2062,28 @@ int main(int argc, char *args[])
           }
         }
 
-        if (gameState != GAME || replay)
-        {
+        if (gameState != GAME || replay) {
           break;
         }
 
         char *fpsStr;
         SDL_asprintf(&fpsStr, "%f", 1 / fps);
-        TTF_Text *fpsText = TTF_CreateText(gTextEngine, kenVectorFont, fpsStr, 0);
+        TTF_Text *fpsText =
+            TTF_CreateText(gTextEngine, kenVectorFont, fpsStr, 0);
 
-        drawGame(&player, &asteroids, &powerUps, fpsText); /* Draw, Blit and Render */
+        drawGame(&player, &asteroids, &powerUps,
+                 fpsText); /* Draw, Blit and Render */
 
         frameEnd = SDL_GetPerformanceCounter();
         fps = (frameEnd - frameStart) / (float)SDL_GetPerformanceFrequency();
       }
     }
-  
-    else if (gameState == SCORES)
-    {
+
+    else if (gameState == SCORES) {
       Button buttons[2];
 
-      buttons[0].text = TTF_CreateText(gTextEngine, kenVectorFont, "Sort By Score", 0);
+      buttons[0].text =
+          TTF_CreateText(gTextEngine, kenVectorFont, "Sort By Score", 0);
       buttons[0].clicked = 0;
       buttons[0].hovered = 0;
       buttons[0].width = 200;
@@ -2244,8 +2118,7 @@ int main(int argc, char *args[])
         root = cJSON_CreateObject();
         scoreArr = cJSON_CreateArray();
         cJSON_AddItemToObject(root, "Scores", scoreArr);
-      }
-      else /* Exist -> Use Existing*/
+      } else /* Exist -> Use Existing*/
       {
         root = cJSON_Parse(jsonData);
         sortScores(root, sortType);
@@ -2253,7 +2126,7 @@ int main(int argc, char *args[])
       }
 
       free(jsonData);
-      
+
       int arrSize = cJSON_GetArraySize(scoreArr);
       ScoreObj scores[8]; /* 8 Scores At A Time */
       int scoreCursor = 0;
@@ -2261,7 +2134,8 @@ int main(int argc, char *args[])
 
       char tempText[] = "Enter Username to get Scores. Leave empty to get all.";
       texts[0] = TTF_CreateText(gTextEngine, kenVectorFont, tempText, 0);
-      texts[2] = TTF_CreateText(gTextEngine, kenVectorFont, "Press Esc to go back to menu", 0);
+      texts[2] = TTF_CreateText(gTextEngine, kenVectorFont,
+                                "Press Esc to go back to menu", 0);
       texts[3] = NULL;
 
       char username[50] = {};
@@ -2271,97 +2145,83 @@ int main(int argc, char *args[])
       SDL_Event e;
       bool exited = false;
 
-      while (!exited)
-      {
-        while (SDL_PollEvent(&e) != 0)
-        {
-          if (e.type == SDL_EVENT_QUIT)
-          {
+      while (!exited) {
+        while (SDL_PollEvent(&e) != 0) {
+          if (e.type == SDL_EVENT_QUIT) {
             exited = true;
             run = false;
           }
 
-          else if (e.type == SDL_EVENT_TEXT_INPUT && nameCursor < sizeof(username) - 1)
-          {
+          else if (e.type == SDL_EVENT_TEXT_INPUT &&
+                   nameCursor < sizeof(username) - 1) {
             SDL_strlcat(username, e.text.text, sizeof(username));
             nameCursor = strlen(username);
           }
 
-          else if (e.type == SDL_EVENT_KEY_DOWN && textInput)
-          {
-            if (e.key.key == SDLK_RETURN || e.key.key == SDLK_ESCAPE)
-            {
+          else if (e.type == SDL_EVENT_KEY_DOWN && textInput) {
+            if (e.key.key == SDLK_RETURN || e.key.key == SDLK_ESCAPE) {
               if (e.key.key == SDLK_ESCAPE)
                 strcpy(username, "");
               SDL_StopTextInput(gWindow);
               textInput = false;
-              texts[1] = TTF_CreateText(gTextEngine, kenVectorFont, username, 0);
+              texts[1] =
+                  TTF_CreateText(gTextEngine, kenVectorFont, username, 0);
               texts[3] = NULL;
-            }
-            else if (e.key.key == SDLK_BACKSPACE && nameCursor > 0)
-            {
+            } else if (e.key.key == SDLK_BACKSPACE && nameCursor > 0) {
               nameCursor--;
               username[nameCursor] = '\0';
             }
           }
 
-          else if (e.type == SDL_EVENT_KEY_DOWN && e.key.repeat == 0)
-          {
+          else if (e.type == SDL_EVENT_KEY_DOWN && e.key.repeat == 0) {
             if (e.key.key == SDLK_ESCAPE)
               gameState = MENU;
           }
-        
-          else if (e.type == SDL_EVENT_MOUSE_WHEEL && !textInput)
-          {
-            if (!(scoreCursor - (int) e.wheel.y < 0) && !(scoreCursor - (int) e.wheel.y > arrSize - 8 /* Number of Scores on Screen*/))
-              scoreCursor -= (int) e.wheel.y;
+
+          else if (e.type == SDL_EVENT_MOUSE_WHEEL && !textInput) {
+            if (!(scoreCursor - (int)e.wheel.y < 0) &&
+                !(scoreCursor - (int)e.wheel.y >
+                  arrSize - 8 /* Number of Scores on Screen*/))
+              scoreCursor -= (int)e.wheel.y;
           }
         }
         if (textInput)
           texts[1] = TTF_CreateText(gTextEngine, kenVectorFont, username, 0);
-        else
-        {
-          for (int i = 0; i < 2; i++)
-          {
+        else {
+          for (int i = 0; i < 2; i++) {
             buttonStateUpdater(&buttons[i]);
           }
 
-          if (buttons[0].clicked && buttonTimer.ticks > 200)
-          {
+          if (buttons[0].clicked && buttonTimer.ticks > 200) {
             if (sortType == SCORE) /* Cycle through sort types */
             {
-              sortType = TIME; 
-              buttons[0].text = TTF_CreateText(gTextEngine, kenVectorFont, "Sort By Time", 0);
-            }
-            else if (sortType == TIME) 
-            {
+              sortType = TIME;
+              buttons[0].text =
+                  TTF_CreateText(gTextEngine, kenVectorFont, "Sort By Time", 0);
+            } else if (sortType == TIME) {
               sortType = NAME;
-              buttons[0].text = TTF_CreateText(gTextEngine, kenVectorFont, "Sort By Name", 0);
-            }
-            else if (sortType == NAME) 
-            {
+              buttons[0].text =
+                  TTF_CreateText(gTextEngine, kenVectorFont, "Sort By Name", 0);
+            } else if (sortType == NAME) {
               sortType = SCORE;
-              buttons[0].text = TTF_CreateText(gTextEngine, kenVectorFont, "Sort By Score", 0);
+              buttons[0].text = TTF_CreateText(gTextEngine, kenVectorFont,
+                                               "Sort By Score", 0);
             }
             sortScores(root, sortType);
             scoreArr = cJSON_GetObjectItem(root, "Scores"); /* Regrab array */
             timerReset(&buttonTimer);
           }
 
-          if (buttons[1].clicked)
-          {
+          if (buttons[1].clicked) {
             texts[3] = TTF_CreateText(gTextEngine, kenVectorFont, "!", 0);
             textInput = true;
             SDL_StartTextInput(gWindow);
           }
 
-          if (username[0] == '\0')
-          {
-            for (int i = 0; i < 8; i++)
-            {
+          if (username[0] == '\0') {
+            for (int i = 0; i < 8; i++) {
               cJSON *jScoreObj = cJSON_GetArrayItem(scoreArr, scoreCursor + i);
-              if (jScoreObj != NULL)
-              {
+              if (jScoreObj != NULL) {
                 cJSON *jUsername = cJSON_GetObjectItem(jScoreObj, "Username");
                 char *userName = jUsername->valuestring;
                 cJSON *jScore = cJSON_GetObjectItem(jScoreObj, "Score");
@@ -2371,33 +2231,27 @@ int main(int argc, char *args[])
                 strcpy(scores[i].username, userName);
                 scores[i].score = score;
                 scores[i].time = time;
-              }
-              else
-              {
+              } else {
                 strcpy(scores[i].username, "");
                 scores[i].score = 0;
                 scores[i].time = 0;
               }
             }
-          }
-          else
-          {
+          } else {
             cJSON *userArr = cJSON_CreateArray();
             cJSON *userScore = NULL;
             int arrSize = cJSON_GetArraySize(scoreArr);
-            for (int i = 0; i < arrSize; i++)
-            {
+            for (int i = 0; i < arrSize; i++) {
               userScore = cJSON_GetArrayItem(scoreArr, i);
-              if (strncmp(cJSON_GetObjectItem(userScore, "Username")->valuestring, username, 50) == 0)
+              if (strncmp(
+                      cJSON_GetObjectItem(userScore, "Username")->valuestring,
+                      username, 50) == 0)
                 cJSON_AddItemReferenceToArray(userArr, userScore);
             }
-            
 
-            for (int i = 0; i < 8; i++)
-            {
+            for (int i = 0; i < 8; i++) {
               cJSON *jScoreObj = cJSON_GetArrayItem(userArr, scoreCursor + i);
-              if (jScoreObj != NULL)
-              {
+              if (jScoreObj != NULL) {
                 cJSON *jUsername = cJSON_GetObjectItem(jScoreObj, "Username");
                 char *userName = jUsername->valuestring;
                 cJSON *jScore = cJSON_GetObjectItem(jScoreObj, "Score");
@@ -2407,9 +2261,7 @@ int main(int argc, char *args[])
                 strcpy(scores[i].username, userName);
                 scores[i].score = score;
                 scores[i].time = time;
-              }
-              else
-              {
+              } else {
                 strcpy(scores[i].username, "");
                 scores[i].score = 0;
                 scores[i].time = 0;
@@ -2418,9 +2270,8 @@ int main(int argc, char *args[])
           }
         }
 
-        if (gameState != SCORES)
-        {
-          TTF_SetFontSize(kenVectorFont, HEIGHT/50);
+        if (gameState != SCORES) {
+          TTF_SetFontSize(kenVectorFont, HEIGHT / 50);
           break;
         }
 
