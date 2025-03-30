@@ -38,6 +38,7 @@ enum Power { /* Possible PowerUps */
              SHIELD = 0,
              ARMOR = 1,
              INFFUEL = 2,
+             MULTIBULLET = 3,
 };
 
 enum Size { SMALL = 0, NORMAL = 1, LARGE = 2 };
@@ -324,6 +325,7 @@ typedef struct Player {
   bool shield;
   bool repair;
   bool infFuel;
+  bool multiBullet;
 
   Timer shieldTimer;
   uint32 shieldTime;
@@ -333,6 +335,9 @@ typedef struct Player {
 
   Timer infFuelTimer;
   uint32 infFuelTime;
+
+  Timer multiBullTimer;
+  uint32 multiBullTime;
 
   Timer gameTimer;
 } Player;
@@ -400,6 +405,9 @@ void playerInit(Player *player) {
   player->infFuel = false;
   player->infFuelTime = 5000;
   player->infFuelTimer = timerInit();
+  player->multiBullet = false;
+  player->multiBullTime = 5000;
+  player->multiBullTimer = timerInit();
 
   player->gameTimer = timerInit();
   timerStart(&player->gameTimer);
@@ -427,8 +435,12 @@ void playerShoot(Player *player, int num) {
 
   if (num == 1) {
     bullet.rot = player->rot + 10;
-  } else {
+  } else if (num == 2) {
     bullet.rot = player->rot - 10;
+  } else if (num == 3) {
+    bullet.rot = player->rot + 20;
+  } else if (num == 4) {
+    bullet.rot = player->rot - 20;
   }
   bullet.velX = SDL_sinf(bullet.rot * PI / 180);
   bullet.velY = -SDL_cosf(bullet.rot * PI / 180);
@@ -478,6 +490,10 @@ void playerBulletHander(Player *player, double delta) {
   if (player->shooting && player->bulletTimer.ticks > player->shootDelay) {
     playerShoot(player, 1);
     playerShoot(player, 2);
+    if (player->multiBullTimer.started) {
+      playerShoot(player, 3);
+      playerShoot(player, 4);
+    }
     timerReset(&player->bulletTimer);
   }
 
@@ -663,6 +679,8 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps) {
         player->repair = true;
       } else if (powerPtr->power.powerUp == INFFUEL) {
         player->infFuel = true;
+      } else if (powerPtr->power.powerUp == MULTIBULLET) {
+        player->multiBullet = true;
       }
 
       powerUpDestroy(&powerPtr->power, powerUps);
@@ -674,9 +692,9 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps) {
     timerStart(&player->shieldTimer);
     player->shield = false;
   }
-  if (player->shieldTimer.started &&
-      player->shieldTimer.ticks > player->shieldTime - 1000 &&
-      !player->shieldBlinker.started) {
+  // When shieldTimer gonna end, start blinking
+  if (!player->shieldBlinker.started && player->shieldTimer.started &&
+      player->shieldTimer.ticks > player->shieldTime - 1000) {
     timerStart(&player->shieldBlinker);
   }
   if (player->shieldTimer.started && player->shieldBlinker.started &&
@@ -705,9 +723,19 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps) {
     timerStop(&player->infFuelTimer);
   }
 
+  if (player->multiBullet) {
+    timerStart(&player->multiBullTimer);
+    player->multiBullet = false;
+  }
+  if (player->multiBullTimer.started &&
+      player->multiBullTimer.ticks > player->multiBullTime) {
+    timerStop(&player->multiBullTimer);
+  }
+
   timerCalcTicks(&player->shieldTimer);
   timerCalcTicks(&player->shieldBlinker);
   timerCalcTicks(&player->infFuelTimer);
+  timerCalcTicks(&player->multiBullTimer);
 }
 
 void playerTextHandler(Player *player) {
@@ -1520,7 +1548,7 @@ void drawGame(Player *player, AsteroidList *asteroids, PowerUpList *powerUps,
       spriteRect = getSpriteRect(spriteList, "powerupBlue_shield.png");
     } else if (powerPtr->power.powerUp == ARMOR) {
       spriteRect = getSpriteRect(spriteList, "powerupBlue_star.png");
-    } else if (powerPtr->power.powerUp == INFFUEL) {
+    } else if (powerPtr->power.powerUp == MULTIBULLET) {
       spriteRect = getSpriteRect(spriteList, "powerupBlue_bolt.png");
     }
 
