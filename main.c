@@ -2,6 +2,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_rect.h>
 #include <SDL3/SDL_render.h>
+#include <SDL3/SDL_stdinc.h>
 #include <SDL3/SDL_surface.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_mixer/SDL_mixer.h>
@@ -280,6 +281,7 @@ void powerUpDestroy(PowerUp *powerUp, PowerUpList *powerUps) {
 /* Struct */
 typedef struct Player {
   short armor; /* 3 */
+  TTF_Text *armorText;
 
   short width;  /* 10 */
   short height; /* 10 */
@@ -345,6 +347,7 @@ typedef struct Player {
 /* Functions */
 void playerInit(Player *player) {
   player->armor = 3;
+  player->armorText = NULL;
   player->score = 0;
 
   player->width = 50;
@@ -744,10 +747,21 @@ void playerTextHandler(Player *player) {
   SDL_asprintf(&score, "Score: %lu",
                player->score); /* To join string with int */
   player->scoreText = TTF_CreateText(gTextEngine, kenVectorFont, score, 0);
+
+  char *armor;
+  SDL_asprintf(&armor, " - %i", player->armor);
+  player->armorText = TTF_CreateText(gTextEngine, kenVectorFont, armor, 0);
 }
 
 void playerRender(Player player) {
   /* Render Stats */
+  /* Armor */
+  SDL_FRect playerSpriteRect =
+      getSpriteRect(spriteList, "playerShip2_blue.png");
+  SDL_FRect armorIconRect = {10, 10, 20, 20};
+  SDL_RenderTexture(gRenderer, spriteSheet, &playerSpriteRect, &armorIconRect);
+  TTF_DrawRendererText(player.armorText, 35, 12.5);
+
   /* Score */
   TTF_DrawRendererText(player.scoreText,
                        WIDTH - strlen(player.scoreText->text) * 10, 10);
@@ -770,8 +784,6 @@ void playerRender(Player player) {
 
   /* Player Render */
   /* Player Icon */
-  SDL_FRect playerSpriteRect =
-      getSpriteRect(spriteList, "playerShip2_blue.png");
   /* Stiching Two Textures Together */
   if (player.afterburning && player.moving) {
     SDL_FRect fireSpriteRect = getSpriteRect(spriteList, "fire15.png");
