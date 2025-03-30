@@ -1081,6 +1081,7 @@ void asteroidHandler(AsteroidList *asteroids, PowerUpList *powerUps,
         asteroidDestroy(&astPtr->asteroid, asteroids);
         if (!player->shieldTimer.started) {
           player->armor--;
+          player->shield = true;
         }
       }
     }
