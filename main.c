@@ -63,6 +63,16 @@ SDL_Texture *spriteSheet = NULL;
 TTF_Font *kenVectorFont = NULL;
 TTF_TextEngine *gTextEngine = NULL;
 
+Mix_Music *bgMusic = NULL;
+Mix_Music *battleMusic = NULL;
+
+Mix_Chunk *selectSfx = NULL;
+Mix_Chunk *shootSfx = NULL;
+Mix_Chunk *loseSfx = NULL;
+Mix_Chunk *shieldUpSfx = NULL;
+Mix_Chunk *shieldDownSfx = NULL;
+Mix_Chunk *astDestroySfx = NULL;
+
 /* Sprtie Definitions */
 /* Struct */
 typedef struct Sprite {
@@ -427,6 +437,7 @@ void playerLogs(Player player) {
 }
 
 void playerShoot(Player *player, int num) {
+  Mix_PlayChannel(1, shootSfx, 0);
   Bullet bullet; /* Creating A Bullet*/
 
   /* Initialization of bullet */
@@ -692,6 +703,7 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps) {
   }
 
   if (player->shield) {
+    Mix_PlayChannel(1, shieldUpSfx, 0);
     timerStart(&player->shieldTimer);
     player->shield = false;
   }
@@ -707,6 +719,7 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps) {
   }
   if (player->shieldTimer.started &&
       player->shieldTimer.ticks > player->shieldTime) {
+    Mix_PlayChannel(1, shieldDownSfx, 0);
     timerStop(&player->shieldTimer);
     timerStop(&player->shieldBlinker);
     player->shieldBlink = false;
@@ -1031,6 +1044,7 @@ void asteroidSpawn(AsteroidList *asteroids, Asteroid *refAsteroid) {
 }
 
 void asteroidDestroy(Asteroid *asteroid, AsteroidList *asteroids) {
+  Mix_PlayChannel(1, astDestroySfx, 0);
   if (asteroid->size != SMALL) /* Spawn Asteroids Of Larger Asteroid */
   {
     uint8 num = SDL_rand(4) + 3; /* Number Of Asteroids to Spawn */
@@ -1169,6 +1183,7 @@ bool buttonStateUpdater(Button *button) {
     button->hovered = true;
     if (mouseState == SDL_BUTTON_LMASK) {
       button->clicked = true;
+      Mix_PlayChannel(1, selectSfx, 0);
     } else {
       button->clicked = false;
     }
@@ -1378,6 +1393,7 @@ bool init(void) {
             if (gTextEngine == NULL) {
               printf("TextEngine could not be created! SDL_ttf Error: %s\n",
                      SDL_GetError());
+              success = false;
             } else {
               kenVectorFont = TTF_OpenFont(
                   "Assets/Fonts/kenvector_future_thin.ttf", HEIGHT / 50);
@@ -1385,8 +1401,23 @@ bool init(void) {
                 printf("'JetBrainsMono-Medium.ttf' could not be loaded! "
                        "SDL_ttf Error: %s\n",
                        SDL_GetError());
+                success = false;
               } else {
-                /* code */
+                SDL_AudioSpec audioSpec;
+                SDL_zero(audioSpec);
+                audioSpec.format = MIX_DEFAULT_FORMAT;
+                audioSpec.channels = 2;
+                audioSpec.freq = 44100;
+                if (Mix_OpenAudio(0, &audioSpec) == 0 ||
+                    Mix_Init(MIX_INIT_MP3) == 0 ||
+                    Mix_Init(MIX_INIT_OGG) == 0) {
+                  printf("SDL_mixer could not be initialized! SDL_mixer Error: "
+                         "%s\n",
+                         SDL_GetError());
+                  success = false;
+                } else {
+                  Mix_VolumeMusic(80);
+                }
               }
             }
           }
@@ -1474,6 +1505,77 @@ bool load(
   }
 
   parseXML("Assets/sheet.xml");
+
+  // Sound and Music
+  bgMusic = Mix_LoadMUS("Assets/Music/background.mp3");
+  if (bgMusic == NULL) {
+    printf("'Assets/Music/background.mp3' could not be loaded! SDL_mixer "
+           "Error: %s\n",
+           SDL_GetError());
+    success = false;
+  }
+
+  battleMusic = Mix_LoadMUS("Assets/Music/battle.mp3");
+  if (battleMusic == NULL) {
+    printf("'Assets/Music/battle.mp3' could not be loaded! SDL_mixer "
+           "Error: %s\n",
+           SDL_GetError());
+    success = false;
+  }
+
+  selectSfx = Mix_LoadWAV("Assets/SoundEffects/sfx_twoTone.ogg");
+  if (selectSfx == NULL) {
+    printf(
+        "'Assets/SoundEffects/sfx_twoTone.ogg' could not be loaded! SDL_mixer "
+        "Error: %s\n",
+        SDL_GetError());
+    success = false;
+  }
+
+  shootSfx = Mix_LoadWAV("Assets/SoundEffects/sfx_laser2.ogg");
+  if (shootSfx == NULL) {
+    printf(
+        "'Assets/SoundEffects/sfx_laser2.ogg' could not be loaded! SDL_mixer "
+        "Error: %s\n",
+        SDL_GetError());
+    success = false;
+  }
+
+  shieldUpSfx = Mix_LoadWAV("Assets/SoundEffects/sfx_shieldUp.ogg");
+  if (shieldUpSfx == NULL) {
+    printf(
+        "'Assets/SoundEffects/sfx_shieldUp.ogg' could not be loaded! SDL_mixer "
+        "Error: %s\n",
+        SDL_GetError());
+    success = false;
+  }
+
+  shieldDownSfx = Mix_LoadWAV("Assets/SoundEffects/sfx_shieldDown.ogg");
+  if (shieldDownSfx == NULL) {
+    printf("'Assets/SoundEffects/sfx_shieldDown.ogg' could not be loaded! "
+           "SDL_mixer "
+           "Error: %s\n",
+           SDL_GetError());
+    success = false;
+  }
+
+  astDestroySfx = Mix_LoadWAV("Assets/SoundEffects/sfx_zap.ogg");
+  if (astDestroySfx == NULL) {
+    printf("'Assets/SoundEffects/sfx_zap.ogg' could not be loaded! "
+           "SDL_mixer "
+           "Error: %s\n",
+           SDL_GetError());
+    success = false;
+  }
+
+  loseSfx = Mix_LoadWAV("Assets/SoundEffects/sfx_lose.ogg");
+  if (loseSfx == NULL) {
+    printf("'Assets/SoundEffects/sfx_lose.ogg' could not be loaded! "
+           "SDL_mixer "
+           "Error: %s\n",
+           SDL_GetError());
+    success = false;
+  }
 
   return success;
 }
@@ -1779,6 +1881,10 @@ int main(int argc, char *args[]) {
   while (run) {
     if (gameState == MENU) /* Main Menu */
     {
+      /* Music */
+      if (!Mix_PlayingMusic())
+        Mix_PlayMusic(bgMusic, -1);
+
       /* Buttons */
       Button buttons[3];
 
@@ -1900,6 +2006,10 @@ int main(int argc, char *args[]) {
 
       load(&player);
 
+      /* Play Music */
+      Mix_HaltMusic();
+      Mix_PlayMusic(battleMusic, -1);
+
       SDL_Event e;
       bool exited = false;
       bool replay = false;
@@ -1928,6 +2038,8 @@ int main(int argc, char *args[]) {
           astSpawnTime -= 100;
 
         if (player.armor < 0) {
+          Mix_PlayChannel(1, loseSfx, 0);
+          Mix_HaltMusic();
           gameState = OVER;
         }
 
@@ -2013,8 +2125,10 @@ int main(int argc, char *args[]) {
               buttonStateUpdater(&buttons[i]);
             }
 
-            if (buttons[0].clicked)
+            if (buttons[0].clicked) {
+              Mix_HaltMusic();
               gameState = MENU;
+            }
 
             if (buttons[1].clicked) {
               replay = true;
@@ -2036,6 +2150,7 @@ int main(int argc, char *args[]) {
             drawOver(buttons, texts);
           }
         } else if (gameState == PAUSED) {
+          Mix_PauseMusic();
           Button buttons[2];
 
           Button resumeButton;
@@ -2078,6 +2193,7 @@ int main(int argc, char *args[]) {
               if (e.type == SDL_EVENT_KEY_DOWN && e.key.repeat == false) {
                 if (e.key.key == SDLK_ESCAPE) {
                   gameState = GAME;
+                  Mix_ResumeMusic();
                   paused = false;
                 }
               }
@@ -2088,11 +2204,13 @@ int main(int argc, char *args[]) {
 
             if (buttons[0].clicked) {
               gameState = GAME;
+              Mix_ResumeMusic();
               paused = false;
             }
 
             if (buttons[1].clicked) {
               gameState = MENU;
+              Mix_HaltMusic();
               paused = false;
               exited = true;
             }
