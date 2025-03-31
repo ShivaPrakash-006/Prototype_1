@@ -727,11 +727,13 @@ void playerPowerUpHandler(Player *player, PowerUpList *powerUps) {
   }
 
   if (player->multiBullet) {
+    player->shootDelay = 100;
     timerStart(&player->multiBullTimer);
     player->multiBullet = false;
   }
   if (player->multiBullTimer.started &&
       player->multiBullTimer.ticks > player->multiBullTime) {
+    player->shootDelay = 200;
     timerStop(&player->multiBullTimer);
   }
 
