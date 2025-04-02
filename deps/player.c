@@ -10,8 +10,8 @@ void playerInit(Player *player) {
   player->width = 50;
   player->height = 50;
 
-  player->posX = 10;
-  player->posY = 10;
+  player->posX = WIDTH / 2.f - player->width / 2.f;
+  player->posY = HEIGHT / 2.f - player->height / 2.f;
   player->rot = 90;
 
   player->moveSpeed = 300;
@@ -375,7 +375,8 @@ void playerPowerUpHandler(Player *player, PowerUpNode *powerUps,
   }
 
   if (player->repair) {
-    player->armor++;
+    if (player->armor < 3)
+      player->armor++;
     player->repair = false;
   }
 

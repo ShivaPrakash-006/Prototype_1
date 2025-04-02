@@ -173,8 +173,8 @@ void asteroidHandler(AsteroidNode *asteroids, PowerUpNode *powerUps,
     while (bullPtr != NULL && !destroyed) {
       if (SDL_HasRectIntersectionFloat(&astPtr->asteroid.rect,
                                        &bullPtr->bullet.rect)) {
-        int powerChance = SDL_rand(20);
-        if (powerChance == 10) {
+        int powerChance = SDL_rand(50);
+        if (powerChance == 25) {
           powerUpSpawn(&astPtr->asteroid, powerUps);
         }
 

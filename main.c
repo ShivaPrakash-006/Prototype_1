@@ -198,7 +198,7 @@ int main(int argc, char *args[]) {
         asteroidHandler(&asteroids, &powerUps, &player, &astSpawnTimer,
                         &astSpawnCount, astSpawnTime, dTimer.delta, spriteList,
                         astDestroySfx);
-        if (astSpawnCount > 10 && astSpawnCount > 500)
+        if (astSpawnCount > 10 && astSpawnCount < 500 && astSpawnTime > 500)
           astSpawnTime -= 100;
 
         if (player.armor < 0) {
